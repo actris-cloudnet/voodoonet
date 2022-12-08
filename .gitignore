@@ -1,0 +1,13 @@
+try_voodoo.py
+.idea/
+venv/
+*__pycache__*
+tests/source_data/
+docs/html/
+docs/doctrees/
+*egg-info*
+build/
+dist/
+scripts/
+.eggs/
+*~

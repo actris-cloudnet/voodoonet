@@ -77,8 +77,17 @@ def interpolate_to_256(rpg_data: np.ndarray, rpg_header: dict) -> np.ndarray:
             spec_new[:, ia:ib, :] = spec
         else:
             old = rpg_header["velocity_vectors"][ind]
-            f = interp1d(old, spec, axis=2, bounds_error=False, fill_value=-999.0, kind="linear")
-            spec_new[:, ia:ib, :] = f(np.linspace(old[np.argmin(old)], old[np.argmax(old)], n_bins))
+            iaa, ibb = int(np.argmin(old)), int(np.argmax(old)) + 1
+            old = old[iaa:ibb]
+            f = interp1d(
+                old,
+                spec[:, :, iaa:ibb],
+                axis=2,
+                bounds_error=False,
+                fill_value=-999.0,
+                kind="nearest",
+            )
+            spec_new[:, ia:ib, :] = f(np.linspace(old[0], old[-1], n_bins))
 
     return spec_new
 

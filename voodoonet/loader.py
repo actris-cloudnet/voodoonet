@@ -7,7 +7,7 @@ from torch import Tensor, save
 from tqdm.auto import tqdm  # remove when implementation is done
 
 from voodoonet import utils
-from voodoonet.utils import VoodooOptions
+from voodoonet.utils import VoodooOptions, VoodooTrainingOptions
 
 from .torch_model import VoodooNet
 
@@ -16,8 +16,9 @@ def run(
     rpg_lv0_files: list,
     target_time: np.ndarray | None = None,
     options: VoodooOptions = VoodooOptions(),
+    training_options: VoodooTrainingOptions = VoodooTrainingOptions(),
 ) -> np.ndarray:
-    voodoo_droplet = VoodooDroplet(target_time, options)
+    voodoo_droplet = VoodooDroplet(target_time, options, training_options)
     for filename in rpg_lv0_files:
         voodoo_droplet.calc_prob(filename)
     return voodoo_droplet.prob_liquid
@@ -27,8 +28,9 @@ def generate_trainingdata(
     rpg_lv0_files: list,
     classification_files: list,
     options: VoodooOptions = VoodooOptions(),
+    training_options: VoodooTrainingOptions = VoodooTrainingOptions(),
 ) -> tuple[Tensor, Tensor]:
-    voodoo_droplet = VoodooDroplet(None, options)
+    voodoo_droplet = VoodooDroplet(None, options, training_options)
     voodoo_droplet.compile_dataset(rpg_lv0_files, classification_files)
     return voodoo_droplet.features, voodoo_droplet.labels
 
@@ -42,9 +44,15 @@ def save_trainingdata(
 
 
 class VoodooDroplet:
-    def __init__(self, target_time: np.ndarray | None, options: VoodooOptions):
+    def __init__(
+        self,
+        target_time: np.ndarray | None,
+        options: VoodooOptions,
+        training_options: VoodooTrainingOptions,
+    ):
         self.target_time = target_time
         self.options = options
+        self.training_options = training_options
         self.prob_liquid = np.array([])
         self.features = Tensor([])
         self.labels = Tensor([])
@@ -137,7 +145,7 @@ class VoodooDroplet:
         tensor = torch.Tensor(data)
         tensor = torch.unsqueeze(tensor, dim=1)
         tensor = torch.transpose(tensor, 3, 2)
-        voodoo_net = VoodooNet(tensor.shape, self.options)
+        voodoo_net = VoodooNet(tensor.shape, self.options, self.training_options)
         voodoo_net.load_state_dict(
             torch.load(self.options.trained_model, map_location=self.options.device)["state_dict"]
         )
@@ -196,11 +204,7 @@ def _replace_fill_value(data: np.ndarray, new_fill: np.ndarray) -> np.ndarray:
 
 def load_trainingdata(
     filename: str,
-    garbage: list[int],
-    dupe_droplets: int,
-    groups: list[list[int]],
-    shuffle: bool = True,
-    split: float = 0.1,  # -> 10% of data for validation
+    options: VoodooTrainingOptions,
 ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
     data = torch.load(filename)
 
@@ -208,27 +212,27 @@ def load_trainingdata(
     X = torch.unsqueeze(X, dim=1)
     X = torch.transpose(X, 3, 2)
 
-    if garbage is not None:
-        for i in garbage:
+    if options.garbage is not None:
+        for i in options.garbage:
             y[y == i] = 999
         X = X[y < 999]
         y = y[y < 999]
 
-    if dupe_droplets > 0:
+    if options.dupe_droplets > 0:
         # lookup indices for cloud dorplet bearing classes
         idx_CD = torch.argwhere(
-            torch.sum(torch.stack([torch.tensor(y == i) for i in groups[0]], dim=0), dim=0)
+            torch.sum(torch.stack([torch.tensor(y == i) for i in options.groups[0]], dim=0), dim=0)
         )[:, 0]
-        X = torch.cat([X, torch.cat([X[idx_CD] for _ in range(dupe_droplets)], dim=0)])
-        y = torch.cat([y, torch.cat([y[idx_CD] for _ in range(dupe_droplets)])])
+        X = torch.cat([X, torch.cat([X[idx_CD] for _ in range(options.dupe_droplets)], dim=0)])
+        y = torch.cat([y, torch.cat([y[idx_CD] for _ in range(options.dupe_droplets)])])
 
-    if shuffle:
+    if options.shuffle:
         perm = torch.randperm(len(y))
         X, y = X[perm], y[perm]
 
     # drop some percentage from the data
-    if 0 < split < 1:
-        idx_split = int(X.shape[0] * split)
+    if 0 < options.split < 1:
+        idx_split = int(X.shape[0] * options.split)
         X_train, y_train = X[idx_split:, ...], y[idx_split:]
         X_test, y_test = X[:idx_split, ...], y[:idx_split]
     else:
@@ -236,7 +240,7 @@ def load_trainingdata(
 
     tmp1 = torch.clone(y_train)
     tmp2 = torch.clone(y_test)
-    for i, val in enumerate(groups):  # i from 0, ..., ngroups-1
+    for i, val in enumerate(options.groups):  # i from 0, ..., ngroups-1
         for jclass in val:
             tmp1[y_train == jclass] = i
             tmp2[y_test == jclass] = i
@@ -246,7 +250,11 @@ def load_trainingdata(
 
     del tmp1, tmp2, X, y
 
-    y_train = torch.nn.functional.one_hot(y_train.to(torch.int64), num_classes=len(groups)).float()
-    y_test = torch.nn.functional.one_hot(y_test.to(torch.int64), num_classes=len(groups)).float()
+    y_train = torch.nn.functional.one_hot(
+        y_train.to(torch.int64), num_classes=len(options.groups)
+    ).float()
+    y_test = torch.nn.functional.one_hot(
+        y_test.to(torch.int64), num_classes=len(options.groups)
+    ).float()
 
     return X_train, y_train, X_test, y_test

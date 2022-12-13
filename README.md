@@ -52,18 +52,15 @@ voodoonet.save_trainingdata(features, labels, '/path/to/trainingset/data.pt')
 ```python
 import voodoonet
 from voodoonet.torch_model import VoodooNet
-from voodoonet.utils import VoodooOptions
+from voodoonet.utils import VoodooOptions, VoodooTrainingOptions
 
 
 X_train, y_train, X_test, y_test = voodoonet.loader.load_trainingdata(
-    '/path/to/trainingset/data.pt',
-    [0, 3, 7, 8, 9, 10],
-    1,
-    [[1, 5], [2, 4, 6]]
+    '/path/to/trainingset/data.pt', options=VoodooTrainingOptions()
 )
 
 # load the model and train
-voodoo_model = VoodooNet(X_train.shape, VoodooOptions())
+voodoo_model = VoodooNet(X_train.shape, options=VoodooOptions(), training_options=VoodooTrainingOptions())
 voodoo_model.print_nparams()
 
 voodoo_model.optimize(X_train, y_train, X_test, y_test, epochs=5)

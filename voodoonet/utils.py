@@ -10,6 +10,7 @@ from torch import Tensor, concat, from_numpy
 from torchmetrics.classification import BinaryConfusionMatrix
 
 IntTuples = tuple[tuple[int, int], ...]
+IntTuples2 = tuple[tuple[int, ...], ...]
 Ints = tuple[int, ...]
 
 
@@ -30,6 +31,18 @@ class VoodooOptions:
 
     def dict(self) -> dict:
         return {k: str(v) for k, v in asdict(self).items()}
+
+
+@dataclass
+class VoodooTrainingOptions:
+    garbage: Ints = (0, 3, 7, 8, 9, 10)
+    groups: IntTuples2 = ((1, 5), (2, 4, 6))
+    dupe_droplets: int = 1
+    learning_rate: float = 1.0e-3
+    learning_rate_decay: float = 1.0e-1
+    learning_rate_decay_steps: float = 1
+    shuffle: bool = True
+    split: float = 0.1  # -> 10% of data for validation
 
 
 def time_grid(date: str, resolution: int = 30) -> np.ndarray:

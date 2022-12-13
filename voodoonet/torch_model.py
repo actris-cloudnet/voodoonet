@@ -4,17 +4,28 @@ This module contains functions for generating deep learning models with Tensorfl
 from collections import OrderedDict
 
 import torch
+import wandb
 from torch import Tensor, nn
 from torch.optim import Adam
 from torch.optim.lr_scheduler import StepLR
 from tqdm.auto import tqdm
 
-import wandb
-from voodoonet.utils import VoodooOptions, calc_cm, metrics_to_dict, validation_metrics
+from voodoonet.utils import (
+    VoodooOptions,
+    VoodooTrainingOptions,
+    calc_cm,
+    metrics_to_dict,
+    validation_metrics,
+)
 
 
 class VoodooNet(nn.Module):
-    def __init__(self, input_shape: torch.Size, options: VoodooOptions):
+    def __init__(
+        self,
+        input_shape: torch.Size,
+        options: VoodooOptions,
+        training_options: VoodooTrainingOptions,
+    ):
         """
         Defining a PyTorch model.
 
@@ -34,9 +45,9 @@ class VoodooNet(nn.Module):
         # training paramters
         self.loss = nn.CrossEntropyLoss()
         self.optimizer = Adam
-        self.lr = 1.0e-3
-        self.lr_decay = 1.0e-1
-        self.lr_decay_step = 1
+        self.lr = training_options.learning_rate
+        self.lr_decay = training_options.learning_rate_decay
+        self.lr_decay_step = training_options.learning_rate_decay_steps
         self.lr_scheduler = StepLR
 
         # Capture a dictionary of hyperparameters with config

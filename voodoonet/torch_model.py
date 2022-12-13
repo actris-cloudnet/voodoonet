@@ -4,12 +4,12 @@ This module contains functions for generating deep learning models with Tensorfl
 from collections import OrderedDict
 
 import torch
-import wandb
 from torch import Tensor, nn
 from torch.optim import Adam
 from torch.optim.lr_scheduler import StepLR
 from tqdm.auto import tqdm
 
+import wandb
 from voodoonet.utils import VoodooOptions, calc_cm, metrics_to_dict, validation_metrics
 
 
@@ -40,9 +40,10 @@ class VoodooNet(nn.Module):
         self.lr_scheduler = StepLR
 
         # Capture a dictionary of hyperparameters with config
-        self.wandb = wandb.init(project="voodoonet", name="v2", entity="krljhnsn")
-        assert self.wandb is not None
-        self.wandb.config.update(self.options.dict(), allow_val_change=True)
+        if self.options.use_wandb is True:
+            self.wandb = wandb.init(project="voodoonet", name="v2", entity="krljhnsn")
+            assert self.wandb is not None
+            self.wandb.config.update(self.options.dict(), allow_val_change=True)
 
     def predict(self, x_test: Tensor, batch_size: int = 4096) -> Tensor:
         self.to(self.options.device)
@@ -123,8 +124,9 @@ class VoodooNet(nn.Module):
         self.train()
 
         # what with weights and biases
-        assert self.wandb is not None
-        self.wandb.watch(self, self.loss, log="all", log_freq=100)
+        if self.options.use_wandb is True:
+            assert self.wandb is not None
+            self.wandb.watch(self, self.loss, log="all", log_freq=100)
 
         self.optimizer = self.optimizer(self.parameters(), lr=self.lr)  # type: ignore
         self.lr_scheduler = self.lr_scheduler(
@@ -159,19 +161,21 @@ class VoodooNet(nn.Module):
                     batch_metrics = validation_metrics(batch_cm)
                     batch_loss = batch_loss / (i // batch_size)
 
-                    assert self.wandb is not None
-                    self.wandb.log(
-                        {
-                            "batch_metrics": metrics_to_dict(batch_metrics),
-                            "batch_loss": batch_loss,
-                            "val_metrics": metrics_to_dict(val_metrics),
-                            "val_loss": val_loss,
-                        }
-                    )
+                    if self.options.use_wandb is True:
+                        assert self.wandb is not None
+                        self.wandb.log(
+                            {
+                                "batch_metrics": metrics_to_dict(batch_metrics),
+                                "batch_loss": batch_loss,
+                                "val_metrics": metrics_to_dict(val_metrics),
+                                "val_loss": val_loss,
+                            }
+                        )
 
             # advance lr schedular after epoch
-            assert self.wandb is not None
-            self.wandb.log({"learning_rate": self.optimizer.param_groups[0]["lr"]})
+            if self.options.use_wandb is True:
+                assert self.wandb is not None
+                self.wandb.log({"learning_rate": self.optimizer.param_groups[0]["lr"]})
             self.lr_scheduler.step()  # type: ignore
 
     def validation(self, X: Tensor, y: Tensor, batch_size: int = 256) -> tuple:
@@ -214,8 +218,9 @@ class VoodooNet(nn.Module):
 
         torch.save(checkpoint, path)
 
-        assert self.wandb is not None
-        self.wandb.save(path.replace(".pt", ".onnx"))
+        if self.options.use_wandb is True:
+            assert self.wandb is not None
+            self.wandb.save(path.replace(".pt", ".onnx"))
 
 
 class Conv2DUnit(nn.Module):

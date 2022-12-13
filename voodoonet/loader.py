@@ -51,11 +51,12 @@ class VoodooDroplet:
 
     def calc_prob(self, filename: str) -> None:
         spectra_norm, non_zero_mask, time_ind = self.extract_features(filename)
-        prediction = self._predict(spectra_norm)
-        prob = utils.reshape(prediction, ~non_zero_mask)
-        prob = gaussian_filter(prob, sigma=1)
-        prob = prob[:, :, 0]
-        self.prob_liquid[time_ind, :] = prob
+        if len(time_ind) > 0:
+            prediction = self._predict(spectra_norm)
+            prob = utils.reshape(prediction, ~non_zero_mask)
+            prob = gaussian_filter(prob, sigma=1)
+            prob = prob[:, :, 0]
+            self.prob_liquid[time_ind, :] = prob
 
     def extract_features(self, filename: str) -> tuple:
         header, data = read_rpg(filename)

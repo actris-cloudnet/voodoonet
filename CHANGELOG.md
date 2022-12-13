@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.4 – 2022-12-13
+
+- Fix interpolation
+
 ## 0.0.3 – 2022-12-13
 
 - Avoid error when no time indices

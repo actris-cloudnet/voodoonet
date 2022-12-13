@@ -26,6 +26,10 @@ setup(
         "scipy",
         "tqdm",
         "rpgpy>=0.12.1",
+        "xarray",
+        "dask",
+        "wandb",
+        "torchmetrics",
     ],
     extras_require={
         "dev": [

@@ -1,8 +1,10 @@
 import numpy as np
 import torch
+import xarray as xr
 from rpgpy import read_rpg
 from scipy.ndimage import gaussian_filter
-from torch import Tensor
+from torch import Tensor, save
+from tqdm.auto import tqdm  # remove when implementation is done
 
 from voodoonet import utils
 from voodoonet.utils import VoodooOptions
@@ -21,13 +23,41 @@ def run(
     return voodoo_droplet.prob_liquid
 
 
+def generate_trainingdata(
+    rpg_lv0_files: list,
+    classification_files: list,
+    options: VoodooOptions = VoodooOptions(),
+) -> tuple[Tensor, Tensor]:
+    voodoo_droplet = VoodooDroplet(None, options)
+    voodoo_droplet.compile_dataset(rpg_lv0_files, classification_files)
+    return voodoo_droplet.features, voodoo_droplet.labels
+
+
+def save_trainingdata(
+    features: Tensor,
+    labels: Tensor,
+    file_name: str,
+) -> None:
+    save({"features": features, "labels": labels}, file_name)
+
+
 class VoodooDroplet:
     def __init__(self, target_time: np.ndarray | None, options: VoodooOptions):
         self.target_time = target_time
         self.options = options
         self.prob_liquid = np.array([])
+        self.features = Tensor([])
+        self.labels = Tensor([])
 
     def calc_prob(self, filename: str) -> None:
+        spectra_norm, non_zero_mask, time_ind = self.extract_features(filename)
+        prediction = self._predict(spectra_norm)
+        prob = utils.reshape(prediction, ~non_zero_mask)
+        prob = gaussian_filter(prob, sigma=1)
+        prob = prob[:, :, 0]
+        self.prob_liquid[time_ind, :] = prob
+
+    def extract_features(self, filename: str) -> tuple:
         header, data = read_rpg(filename)
         self._init_arrays(header, data)
         assert self.target_time is not None
@@ -36,7 +66,7 @@ class VoodooDroplet:
             (self.target_time > min(radar_time)) & (self.target_time < max(radar_time))
         )
         if len(time_ind[0]) == 0:
-            return
+            return np.array([]), np.array([]), np.array([])
         non_zero_mask = data["TotSpec"] > 0.0
         spectra = _replace_fill_value(data["TotSpec"], data["SLv"])
         spectra = utils.interpolate_to_256(spectra, header)
@@ -51,11 +81,40 @@ class VoodooDroplet:
         spectra = interp_var[ind[0], ind[1], :, :]
         spectra = utils.lin2z(spectra)
         spectra_norm = self._normalize_spectra(spectra)
-        prediction = self._predict(spectra_norm)
-        prob = utils.reshape(prediction, ~non_zero_mask)
-        prob = gaussian_filter(prob, sigma=1)
-        prob = prob[:, :, 0]
-        self.prob_liquid[time_ind, :] = prob
+        return spectra_norm, non_zero_mask, time_ind
+
+    def compile_dataset(self, rpg_lv0_files: list[str], target_class_files: list[str]) -> None:
+
+        feature_list = []
+        label_list = []
+
+        for class_file in sorted(target_class_files):
+            xr_dataset = xr.open_mfdataset(class_file)
+            target_classification = xr_dataset["target_classification"]
+            detection_status = xr_dataset["detection_status"]
+            self.target_time = utils.numpy_datetime2unix(target_classification.time.values)
+            year, month, day = xr_dataset.year, xr_dataset.month, xr_dataset.day
+
+            daily_rpg_lv0_files = utils.filter_list(rpg_lv0_files, [year[2:], month, day])
+            print(daily_rpg_lv0_files)
+
+            for filename in tqdm(daily_rpg_lv0_files):
+                assert isinstance(filename, str)
+                features, non_zero_mask, time_ind = self.extract_features(filename)
+
+                classes = target_classification.values[time_ind[0], :]
+                status = detection_status.values[time_ind[0], :]
+
+                ind = np.where(non_zero_mask)
+                features, labels = utils.keep_valid_samples(
+                    features, classes[ind[0], ind[1]], status[ind[0], ind[1]]
+                )
+
+                feature_list.append(features)
+                label_list.append(labels)
+
+        self.features = utils.numpy_arrays2tensor(feature_list)
+        self.labels = utils.numpy_arrays2tensor(label_list)
 
     def _init_arrays(self, header: dict, data: dict) -> None:
         """Init target time and liquid probability arrays."""
@@ -70,8 +129,8 @@ class VoodooDroplet:
         """Normalize spectra between 0 and 1."""
         z_min, z_max = self.options.z_limits
         data_normalized = (spectra - z_min) / (z_max - z_min)
-        data_normalized[data_normalized < 0] = 0
-        data_normalized[data_normalized > 1] = 1
+        data_normalized[data_normalized < 0.0] = 0.0
+        data_normalized[data_normalized > 1.0] = 1.0
         return data_normalized
 
     def _predict(self, data: np.ndarray) -> Tensor:
@@ -133,6 +192,69 @@ def _replace_fill_value(data: np.ndarray, new_fill: np.ndarray) -> np.ndarray:
             else:
                 data[iT, iR, data[iT, iR, :] <= 0.0] = new_fill[iT, iR]
     return data
+
+
+def load_trainingdata(
+    filename: str,
+    garbage: list[int],
+    dupe_droplets: int,
+    groups: list[list[int]],
+    shuffle: bool = True,
+    split: float = 0.1,  # -> 10% of data for validation
+) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+    data = torch.load(filename)
+
+    X, y = data["features"], data["labels"]
+    X = torch.unsqueeze(X, dim=1)
+    X = torch.transpose(X, 3, 2)
+
+    if garbage is not None:
+        for i in garbage:
+            y[y == i] = 999
+        X = X[y < 999]
+        y = y[y < 999]
+
+    if dupe_droplets > 0:
+        # lookup indices for cloud dorplet bearing classes
+        idx_CD = torch.argwhere(
+            torch.sum(torch.stack([torch.tensor(y == i) for i in groups[0]], dim=0), dim=0)
+        )[:, 0]
+        X = torch.cat([X, torch.cat([X[idx_CD] for _ in range(dupe_droplets)], dim=0)])
+        y = torch.cat([y, torch.cat([y[idx_CD] for _ in range(dupe_droplets)])])
+
+    if shuffle:
+        perm = torch.randperm(len(y))
+        X, y = X[perm], y[perm]
+
+    # drop some percentage from the data
+    if 0 < split < 1:
+        idx_split = int(X.shape[0] * split)
+        X_train, y_train = X[idx_split:, ...], y[idx_split:]
+        X_test, y_test = X[:idx_split, ...], y[:idx_split]
+    else:
+        raise ValueError("Provide split between 0 and 1!")
+
+    class_counts = dict(zip(np.arange(12), np.zeros(12)))
+    unique, counts = np.unique(y_train, return_counts=True)
+    class_counts.update(dict(zip(unique, counts)))
+    print(class_counts)
+
+    tmp1 = torch.clone(y_train)
+    tmp2 = torch.clone(y_test)
+    for i, val in enumerate(groups):  # i from 0, ..., ngroups-1
+        for jclass in val:
+            tmp1[y_train == jclass] = i
+            tmp2[y_test == jclass] = i
+
+    y_train = tmp1
+    y_test = tmp2
+
+    del tmp1, tmp2, X, y
+
+    y_train = torch.nn.functional.one_hot(y_train.to(torch.int64), num_classes=len(groups)).float()
+    y_test = torch.nn.functional.one_hot(y_test.to(torch.int64), num_classes=len(groups)).float()
+
+    return X_train, y_train, X_test, y_test
 
 
 def train(input_files: dict, output: str) -> None:

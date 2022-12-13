@@ -1,7 +1,14 @@
 # VoodooNet
 Predicting liquid droplets in mixed-phase clouds beyond lidar attenuation using artificial neural nets and Doppler cloud radar spectra
 
-![VoodooNet](voodoonet/img/voodoo_logo.png)
+
+<div align="center">
+  <a href="https://github.com/remsens-lim/Voodoo">
+    <img src="voodoonet/img/voodoo_logo.png" alt="Logo" width="520" height="280">
+  </a>
+</div>
+
+VOODOO is a machine learning approach based convolutional neural networks (CNN) to relate Doppler spectra morphologies to the presence of (supercooled) liquid cloud droplets in mixed-phase clouds.
 
 ## Prerequisites
 

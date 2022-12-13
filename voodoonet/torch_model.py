@@ -4,10 +4,13 @@ This module contains functions for generating deep learning models with Tensorfl
 from collections import OrderedDict
 
 import torch
+import wandb
 from torch import Tensor, nn
+from torch.optim import Adam
+from torch.optim.lr_scheduler import StepLR
 from tqdm.auto import tqdm
 
-from voodoonet.utils import VoodooOptions
+from voodoonet.utils import VoodooOptions, calc_cm, metrics_to_dict, validation_metrics
 
 
 class VoodooNet(nn.Module):
@@ -27,6 +30,19 @@ class VoodooNet(nn.Module):
         self.activation_fun = nn.Softmax
         self.convolution_network = self._define_cnn()
         self.dense_network = self._define_dense(dropout=0.0)
+
+        # training paramters
+        self.loss = nn.CrossEntropyLoss()
+        self.optimizer = Adam
+        self.lr = 1.0e-3
+        self.lr_decay = 1.0e-1
+        self.lr_decay_step = 1
+        self.lr_scheduler = StepLR
+
+        # Capture a dictionary of hyperparameters with config
+        self.wandb = wandb.init(project="voodoonet", name="v2", entity="krljhnsn")
+        assert self.wandb is not None
+        self.wandb.config.update(self.options.dict(), allow_val_change=True)
 
     def predict(self, x_test: Tensor, batch_size: int = 4096) -> Tensor:
         self.to(self.options.device)
@@ -77,6 +93,129 @@ class VoodooNet(nn.Module):
         tensor = self.convolution_network(tensor)
         tensor = self.flatten(tensor)
         return tensor.shape[1]
+
+    def fwd_pass(self, X: Tensor, y: Tensor, train: bool = False) -> tuple[Tensor, Tensor]:
+        if train:
+            self.zero_grad()
+
+        outputs = self(X)
+        cm = calc_cm(outputs[:, 0], y[:, 0])
+        loss = self.loss(outputs, y)
+
+        if train:
+            loss.backward()
+            self.optimizer.step()  # type: ignore
+
+        return cm, loss
+
+    def optimize(
+        self,
+        X: Tensor,
+        y: Tensor,
+        X_test: Tensor,
+        y_test: Tensor,
+        batch_size: int = 256,
+        epochs: int = 2,
+        logging_frequency: int = 20,
+    ) -> None:
+
+        self.to(self.options.device)
+        self.train()
+
+        # what with weights and biases
+        assert self.wandb is not None
+        self.wandb.watch(self, self.loss, log="all", log_freq=100)
+
+        self.optimizer = self.optimizer(self.parameters(), lr=self.lr)  # type: ignore
+        self.lr_scheduler = self.lr_scheduler(
+            self.optimizer, step_size=self.lr_decay_step, gamma=self.lr_decay  # type: ignore
+        )
+
+        for epoch in range(epochs):
+            iterator = tqdm(
+                range(0, len(X), batch_size),
+                ncols=100,
+                unit=f" batches - epoch:{epoch + 1}/{epochs}",
+            )
+
+            # initialize batch confusion matrix entries
+            batch_cm = Tensor([0, 0, 0, 0])
+            batch_loss = Tensor([0])
+
+            for i in iterator:
+                batch_X = X[i : i + batch_size].to(self.options.device)
+                batch_y = y[i : i + batch_size].to(self.options.device)
+                if len(batch_y) < batch_size:
+                    continue
+
+                b_cm, b_loss = self.fwd_pass(batch_X, batch_y, train=True)
+
+                batch_cm += b_cm
+                batch_loss += b_loss
+
+                if (i > 0) and i % logging_frequency == 0:
+                    val_metrics, val_loss = self.validation(X_test, y_test)
+
+                    batch_metrics = validation_metrics(batch_cm)
+                    batch_loss = batch_loss / (i // batch_size)
+
+                    assert self.wandb is not None
+                    self.wandb.log(
+                        {
+                            "batch_metrics": metrics_to_dict(batch_metrics),
+                            "batch_loss": batch_loss,
+                            "val_metrics": metrics_to_dict(val_metrics),
+                            "val_loss": val_loss,
+                        }
+                    )
+
+            # advance lr schedular after epoch
+            assert self.wandb is not None
+            self.wandb.log({"learning_rate": self.optimizer.param_groups[0]["lr"]})
+            self.lr_scheduler.step()  # type: ignore
+
+    def validation(self, X: Tensor, y: Tensor, batch_size: int = 256) -> tuple:
+        iterator = tqdm(range(0, len(X), batch_size), ncols=100, unit=" batches - validation")
+
+        # initialize batch confusion matrix entries
+        val_cm = Tensor([0, 0, 0, 0])
+        val_loss = Tensor([0])
+
+        j = 0
+        for j in iterator:
+            test_batch_X = X[j : j + batch_size].to(self.options.device)
+            test_batch_y = y[j : j + batch_size].to(self.options.device)
+
+            with torch.inference_mode():
+                v_cm, v_loss = self.fwd_pass(test_batch_X, test_batch_y)
+                val_cm += v_cm
+                val_loss += v_loss
+
+        val_metrics = validation_metrics(val_cm)
+        val_loss = val_loss / (j // batch_size)
+
+        return val_metrics, val_loss
+
+    def print_nparams(self) -> None:
+        pytorch_total_params = sum(p.numel() for p in self.parameters())
+        pytorch_trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        print(
+            f"Total non-trainable parameters: {pytorch_total_params - pytorch_trainable_params:,d}"
+        )
+        print(f"    Total trainable parameters: {pytorch_trainable_params:_d}")
+        print(f"             Total  parameters: {pytorch_total_params:_d}")
+
+    def save(self, path: str, aux: dict) -> None:
+        checkpoint = {
+            "state_dict": self.state_dict(),
+            "optimizer": self.optimizer.state_dict(),  # type: ignore
+            "auxiliary": aux,
+        }
+
+        torch.save(checkpoint, path)
+
+        assert self.wandb is not None
+        self.wandb.save(path.replace(".pt", ".onnx"))
 
 
 class Conv2DUnit(nn.Module):

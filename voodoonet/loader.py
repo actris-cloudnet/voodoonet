@@ -96,7 +96,6 @@ class VoodooDroplet:
             year, month, day = xr_dataset.year, xr_dataset.month, xr_dataset.day
 
             daily_rpg_lv0_files = utils.filter_list(rpg_lv0_files, [year[2:], month, day])
-            print(daily_rpg_lv0_files)
 
             for filename in tqdm(daily_rpg_lv0_files):
                 assert isinstance(filename, str)
@@ -234,11 +233,6 @@ def load_trainingdata(
     else:
         raise ValueError("Provide split between 0 and 1!")
 
-    class_counts = dict(zip(np.arange(12), np.zeros(12)))
-    unique, counts = np.unique(y_train, return_counts=True)
-    class_counts.update(dict(zip(unique, counts)))
-    print(class_counts)
-
     tmp1 = torch.clone(y_train)
     tmp2 = torch.clone(y_test)
     for i, val in enumerate(groups):  # i from 0, ..., ngroups-1
@@ -255,8 +249,3 @@ def load_trainingdata(
     y_test = torch.nn.functional.one_hot(y_test.to(torch.int64), num_classes=len(groups)).float()
 
     return X_train, y_train, X_test, y_test
-
-
-def train(input_files: dict, output: str) -> None:
-    print(input_files)
-    print(output)

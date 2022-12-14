@@ -25,7 +25,7 @@ pip3 install torch --extra-index-url https://download.pytorch.org/whl/cpu
 
 ## Basic usage
 
-### Make predictions
+### Make predictions using default settings
 ```python
 import voodoonet
 import glob
@@ -56,15 +56,31 @@ from voodoonet.utils import VoodooOptions, VoodooTrainingOptions
 
 
 X_train, y_train, X_test, y_test = voodoonet.loader.load_trainingdata(
-    '/path/to/trainingset/data.pt', options=VoodooTrainingOptions()
+    '/path/to/trainingset/data.pt',
+    options=VoodooTrainingOptions()
 )
 
 # load the model and train
-voodoo_model = VoodooNet(X_train.shape, options=VoodooOptions(), training_options=VoodooTrainingOptions())
+voodoo_model = VoodooNet(
+    X_train.shape,
+    options=VoodooOptions(),
+    training_options=VoodooTrainingOptions()
+)
 voodoo_model.print_nparams()
-
 voodoo_model.optimize(X_train, y_train, X_test, y_test, epochs=5)
 
 # save model and statistics
 voodoo_model.save(path='/path/to/voodoonet/model.pt', aux=voodoo_model.options.dict())
+```
+
+### Make predictions using a new model
+```python
+import voodoonet
+from voodoonet.utils import VoodooOptions
+import glob
+
+rpg_files = glob.glob('/path/to/rpg/files/*.LV0')
+
+options = VoodooOptions(trained_model='/path/to/new/model.pt')
+probability_liquid = voodoonet.run(rpg_files, options=options)
 ```

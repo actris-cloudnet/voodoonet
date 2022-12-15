@@ -4,12 +4,12 @@ This module contains functions for generating deep learning models with Tensorfl
 from collections import OrderedDict
 
 import torch
-import wandb
 from torch import Tensor, nn
 from torch.optim import Adam
 from torch.optim.lr_scheduler import StepLR
 from tqdm.auto import tqdm
 
+import wandb
 from voodoonet.utils import (
     VoodooOptions,
     VoodooTrainingOptions,

@@ -1,10 +1,12 @@
+import logging
+import os.path
+
 import netCDF4
 import numpy as np
 import torch
 from rpgpy import read_rpg
 from scipy.ndimage import gaussian_filter
 from torch import Tensor, save
-from tqdm.auto import tqdm  # remove when implementation is done
 
 from voodoonet import utils
 from voodoonet.utils import VoodooOptions, VoodooTrainingOptions
@@ -97,8 +99,9 @@ class VoodooDroplet:
         feature_list = []
         label_list = []
 
-        for class_file in sorted(target_class_files):
-            with netCDF4.Dataset(class_file) as nc:
+        for classification_file in sorted(target_class_files):
+            logging.info(f"Categorize file: {os.path.basename(classification_file)}")
+            with netCDF4.Dataset(classification_file) as nc:
                 target_classification = nc.variables["target_classification"][:]
                 detection_status = nc.variables["detection_status"][:]
                 year, month, day = nc.year, nc.month, nc.day
@@ -107,8 +110,10 @@ class VoodooDroplet:
                 )
 
             daily_rpg_lv0_files = utils.filter_list(rpg_lv0_files, [year[2:], month, day])
+            if (n_files := len(daily_rpg_lv0_files)) > 0:
+                logging.info(f"Processing {n_files} RPG files...")
 
-            for filename in tqdm(daily_rpg_lv0_files):
+            for filename in daily_rpg_lv0_files:
                 assert isinstance(filename, str)
                 features, non_zero_mask, time_ind = self.extract_features(filename)
 

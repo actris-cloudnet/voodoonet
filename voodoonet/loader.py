@@ -244,26 +244,8 @@ class VoodooDroplet:
 
 
 def _replace_fill_value(data: np.ndarray, new_fill: np.ndarray) -> np.ndarray:
-    """
-    Replaces the fill value of a spectrum container by their time
-    and range specific mean noise level.
-    Args:
-        data: 3D spectrum array (time, range, velocity)
-        new_fill: 2D new fill values for 3rd dimension (velocity)
-
-    Return:
-        var (numpy.array) : spectrum with mean noise
-    """
-
-    n_ts, n_rg, _ = data.shape
-    masked = np.all(data <= 0.0, axis=2)
-
-    for iT in range(n_ts):
-        for iR in range(n_rg):
-            if masked[iT, iR]:
-                data[iT, iR, :] = new_fill[iT, iR]
-            else:
-                data[iT, iR, data[iT, iR, :] <= 0.0] = new_fill[iT, iR]
+    fill_3d = np.broadcast_to(new_fill[..., None], new_fill.shape + (data.shape[2],))
+    data[data <= 0] = fill_3d[data <= 0]
     return data
 
 

@@ -1,0 +1,41 @@
+cff-version: 1.2.0
+authors:
+  - family-names: Schimmel
+    given-names: Willi
+    orcid: "https://orcid.org/0000-0001-8428-6445"
+  - family-names: Tukiainen
+    given-names: Simo
+    orcid: "https://orcid.org/0000-0002-0651-4622"
+title: "VoodooNet"
+message: "If you use this software, please cite the article from preferred-citation."
+preferred-citation:
+  type: article
+  authors:
+    - family-names: Schimmel
+      given-names: Willi
+      orcid: "https://orcid.org/0000-0001-8428-6445"
+    - family-names: Kalesse-Los
+      given-names: Heike
+      orcid: "https://orcid.org/0000-0001-6699-7040"
+    - family-names: Maahn
+      given-names: Maximilian
+      orcid: "https://orcid.org/0000-0002-2580-9100"
+    - family-names: Vogl
+      given-names: Teresa
+      orcid: "https://orcid.org/0000-0002-6696-4967"
+    - family-names: Foth
+      given-names: Andreas
+      orcid: "https://orcid.org/0000-0002-1164-3576"
+    - family-names: Saavedra Garfias
+      given-names: Pablo
+      orcid: "https://orcid.org/0000-0002-4596-946X"
+    - family-names: Seifert
+      given-names: Patric
+      orcid: "https://orcid.org/0000-0002-5626-3761"
+  title: "Identifying cloud droplets beyond lidar attenuation from vertically pointing cloud radar observations using artificial neural networks"
+  journal: "Atmospheric Measurement Techniques"
+  volume: 15
+  year: 2022
+  number: 18
+  pages: 5343-5366
+  doi: 10.5194/amt-15-5343-2022

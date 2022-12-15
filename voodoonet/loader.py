@@ -164,17 +164,24 @@ class VoodooDroplet:
         n_time, n_range, n_vel = spec_vh.shape
         mid = self.options.n_channels // 2
 
-        shape = (n_time_new, n_range, n_vel, self.options.n_channels)
+        shape = (n_time_new, self.options.n_channels, n_range, n_vel)
         ip_var = np.full(shape, fill_value=-999.0, dtype=np.float32)
         ip_msk = np.full(shape, fill_value=True)
+        feature_indices = np.zeros((n_time_new, self.options.n_channels), dtype=int)
 
-        for ind_vel in range(n_vel):
-            for ind_time in range(n_time_new):
-                ind_time_nearest = utils.arg_nearest(time_orig, time_new[ind_time])
-                for i, itmp in enumerate(range(-mid, mid, 1)):
-                    iTdiff = itmp if ind_time_nearest + itmp < n_time else 0
-                    ip_var[ind_time, :, ind_vel, i] = spec_vh[ind_time_nearest + iTdiff, :, ind_vel]
-                    ip_msk[ind_time, :, ind_vel, i] = mask[ind_time_nearest + iTdiff, :, ind_vel]
+        for ind in range(n_time_new):
+            ind_time = utils.arg_nearest(time_orig, time_new[ind])
+            feature_indices[ind, :] = np.array(range(ind_time - mid, ind_time + mid))
+        feature_indices[feature_indices < 0] = 0
+        feature_indices[feature_indices >= n_time] = n_time - 1
+
+        for idx_time, idx_features in enumerate(feature_indices):
+            ip_var[idx_time, :, :, :] = spec_vh[idx_features, :, :]
+            ip_msk[idx_time, :, :, :] = mask[idx_features, :, :]
+
+        ip_var = np.transpose(ip_var, axes=[0, 2, 3, 1])
+        ip_msk = np.transpose(ip_msk, axes=[0, 2, 3, 1])
+
         return ip_var, ip_msk
 
 

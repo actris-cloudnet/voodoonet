@@ -52,8 +52,8 @@ import glob
 rpg_files = glob.glob('/path/to/rpg/files/*.LV0')
 classification_files = glob.glob('/path/to/classification/files/*.nc')
 
-features, labels = voodoonet.generate_trainingdata(rpg_files, classification_files)
-voodoonet.save_trainingdata(features, labels, '/path/to/trainingset/data.pt')
+features, labels = voodoonet.generate_training_data(rpg_files, classification_files)
+voodoonet.save_training_data(features, labels, '/path/to/trainingset/data.pt')
 ```
 
 ### Train a VoodooNet model
@@ -63,7 +63,7 @@ import voodoonet
 from voodoonet.torch_model import VoodooNet
 from voodoonet.utils import VoodooOptions, VoodooTrainingOptions
 
-X_train, y_train, X_test, y_test = voodoonet.loader.load_trainingdata(
+X_train, y_train, X_test, y_test = voodoonet.loader.load_training_data(
     '/path/to/trainingset/data.pt',
     options=VoodooTrainingOptions()
 )

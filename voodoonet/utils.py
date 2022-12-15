@@ -5,7 +5,6 @@ from dataclasses import asdict, dataclass
 
 import numpy as np
 from rpgpy.utils import rpg_seconds2datetime64
-from scipy.interpolate import interp1d
 from torch import Tensor, concat, from_numpy
 from torchmetrics.classification import BinaryConfusionMatrix
 
@@ -76,33 +75,6 @@ def lin2z(array: np.ndarray | list | float) -> np.ndarray:
 def arg_nearest(array: np.ndarray, value: float | int) -> np.int64:
     i = np.searchsorted(array, value)
     return i if i <= array.shape[0] - 1 else i - 1
-
-
-def interpolate_to_256(rpg_data: np.ndarray, rpg_header: dict) -> np.ndarray:
-    n_bins = 256
-    n_time, n_range, _ = rpg_data.shape
-    spec_new = np.zeros((n_time, n_range, n_bins))
-    chirp_limits = np.append(rpg_header["RngOffs"], n_range)
-
-    for ind, (ia, ib) in enumerate(zip(chirp_limits[:-1], chirp_limits[1:])):
-        spec = rpg_data[:, ia:ib, :]
-        if rpg_header["SpecN"][ind] == n_bins:
-            spec_new[:, ia:ib, :] = spec
-        else:
-            old = rpg_header["velocity_vectors"][ind]
-            iaa, ibb = int(np.argmin(old)), int(np.argmax(old)) + 1
-            old = old[iaa:ibb]
-            f = interp1d(
-                old,
-                spec[:, :, iaa:ibb],
-                axis=2,
-                bounds_error=False,
-                fill_value=-999.0,
-                kind="nearest",
-            )
-            spec_new[:, ia:ib, :] = f(np.linspace(old[0], old[-1], n_bins))
-
-    return spec_new
 
 
 def reshape(data: Tensor, mask: np.ndarray) -> np.ndarray:

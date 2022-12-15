@@ -1,6 +1,6 @@
+import netCDF4
 import numpy as np
 import torch
-import xarray as xr
 from rpgpy import read_rpg
 from scipy.ndimage import gaussian_filter
 from torch import Tensor, save
@@ -98,11 +98,13 @@ class VoodooDroplet:
         label_list = []
 
         for class_file in sorted(target_class_files):
-            xr_dataset = xr.open_mfdataset(class_file)
-            target_classification = xr_dataset["target_classification"]
-            detection_status = xr_dataset["detection_status"]
-            self.target_time = utils.numpy_datetime2unix(target_classification.time.values)
-            year, month, day = xr_dataset.year, xr_dataset.month, xr_dataset.day
+            with netCDF4.Dataset(class_file) as nc:
+                target_classification = nc.variables["target_classification"][:]
+                detection_status = nc.variables["detection_status"][:]
+                year, month, day = nc.year, nc.month, nc.day
+                self.target_time = utils.decimal_hour2unix(
+                    [year, month, day], nc.variables["time"][:]
+                )
 
             daily_rpg_lv0_files = utils.filter_list(rpg_lv0_files, [year[2:], month, day])
 
@@ -110,8 +112,8 @@ class VoodooDroplet:
                 assert isinstance(filename, str)
                 features, non_zero_mask, time_ind = self.extract_features(filename)
 
-                classes = target_classification.values[time_ind[0], :]
-                status = detection_status.values[time_ind[0], :]
+                classes = target_classification[time_ind[0], :]
+                status = detection_status[time_ind[0], :]
 
                 ind = np.where(non_zero_mask)
                 features, labels = utils.keep_valid_samples(

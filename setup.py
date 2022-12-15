@@ -26,7 +26,6 @@ setup(
         "scipy",
         "tqdm",
         "rpgpy>=0.12.1",
-        "dask",
         "wandb",
         "torchmetrics",
     ],

@@ -153,8 +153,13 @@ class VoodooDroplet:
                 )
                 feature_list.append(features)
                 label_list.append(labels)
-        self.features = utils.numpy_arrays2tensor(feature_list)
-        self.labels = utils.numpy_arrays2tensor(label_list)
+        if len(feature_list) > 0 and len(label_list) > 0:
+            self.features = utils.numpy_arrays2tensor(feature_list)
+            self.labels = utils.numpy_arrays2tensor(label_list)
+        else:
+            logging.error(
+                "Can not generate training data set. No valid categorize / RPG Level 0 files."
+            )
 
     def _extract_features(self, filename: str) -> tuple:
         header, data = read_rpg(filename)

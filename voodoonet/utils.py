@@ -26,10 +26,16 @@ class VoodooOptions:
     n_dbins: int = 256
     z_limits: tuple[float, float] = (-50, 20)
     device: str = "cpu"
-    use_wandb: bool = False
 
     def dict(self) -> dict:
         return {k: str(v) for k, v in asdict(self).items()}
+
+
+@dataclass
+class WandbConfig:
+    project: str
+    name: str
+    entity: str
 
 
 @dataclass
@@ -42,6 +48,7 @@ class VoodooTrainingOptions:
     learning_rate_decay_steps: int = 1
     shuffle: bool = True
     split: float = 0.1  # -> 10% of data for validation
+    wandb: WandbConfig | None = None
 
 
 def time_grid(date: str, resolution: int = 30) -> np.ndarray:

@@ -39,7 +39,6 @@ class VoodooNet(nn.Module):
         self.activation_fun = nn.Softmax
         self.convolution_network = self._define_cnn()
         self.dense_network = self._define_dense(dropout=0.0)
-
         # training parameters:
         self.loss = nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(self.parameters(), lr=training_options.learning_rate)
@@ -48,12 +47,19 @@ class VoodooNet(nn.Module):
             step_size=training_options.learning_rate_decay_steps,
             gamma=training_options.learning_rate_decay,
         )
+        self._init_wandb(training_options)
 
-        # Capture a dictionary of hyperparameters with config
-        if self.options.use_wandb is True:
-            self.wandb = wandb.init(project="voodoonet", name="v2", entity="krljhnsn")
+    def _init_wandb(self, training_options: VoodooTrainingOptions) -> None:
+        if training_options.wandb is not None:
+            self.wandb = wandb.init(
+                project=training_options.wandb.project,
+                name=training_options.wandb.name,
+                entity=training_options.wandb.entity,
+            )
             assert self.wandb is not None
             self.wandb.config.update(self.options.dict(), allow_val_change=True)
+        else:
+            self.wandb = None
 
     def predict(self, x_test: Tensor, batch_size: int = 4096) -> Tensor:
         self.to(self.options.device)
@@ -133,9 +139,7 @@ class VoodooNet(nn.Module):
         self.to(self.options.device)
         self.train()
 
-        # what with weights and biases
-        if self.options.use_wandb is True:
-            assert self.wandb is not None
+        if self.wandb is not None:
             self.wandb.watch(self, self.loss, log="all", log_freq=100)
 
         for epoch in range(epochs):
@@ -166,8 +170,7 @@ class VoodooNet(nn.Module):
                     batch_metrics = validation_metrics(batch_cm)
                     batch_loss = batch_loss / (i // batch_size)
 
-                    if self.options.use_wandb is True:
-                        assert self.wandb is not None
+                    if self.wandb is not None:
                         self.wandb.log(
                             {
                                 "batch_metrics": metrics_to_dict(batch_metrics),
@@ -177,9 +180,7 @@ class VoodooNet(nn.Module):
                             }
                         )
 
-            # advance lr schedular after epoch
-            if self.options.use_wandb is True:
-                assert self.wandb is not None
+            if self.wandb is not None:
                 self.wandb.log({"learning_rate": self.optimizer.param_groups[0]["lr"]})
             self.lr_scheduler.step()
 
@@ -220,11 +221,8 @@ class VoodooNet(nn.Module):
             "optimizer": self.optimizer.state_dict(),
             "auxiliary": aux,
         }
-
         torch.save(checkpoint, path)
-
-        if self.options.use_wandb is True:
-            assert self.wandb is not None
+        if self.wandb is not None:
             self.wandb.save(path.replace(".pt", ".onnx"))
 
 

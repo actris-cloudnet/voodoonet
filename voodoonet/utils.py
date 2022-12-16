@@ -9,7 +9,7 @@ from torch import Tensor, concat, from_numpy
 from torchmetrics.classification import BinaryConfusionMatrix
 
 IntTuples = tuple[tuple[int, int], ...]
-IntTuples2 = tuple[tuple[int, ...], ...]
+IntTuplesVariable = tuple[tuple[int, ...], ...]
 Ints = tuple[int, ...]
 
 
@@ -35,11 +35,11 @@ class VoodooOptions:
 @dataclass
 class VoodooTrainingOptions:
     garbage: Ints = (0, 3, 7, 8, 9, 10)
-    groups: IntTuples2 = ((1, 5), (2, 4, 6))
+    groups: IntTuplesVariable = ((1, 5), (2, 4, 6))
     dupe_droplets: int = 1
     learning_rate: float = 1.0e-3
     learning_rate_decay: float = 1.0e-1
-    learning_rate_decay_steps: float = 1
+    learning_rate_decay_steps: int = 1
     shuffle: bool = True
     split: float = 0.1  # -> 10% of data for validation
 

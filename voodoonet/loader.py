@@ -63,9 +63,10 @@ def load_training_data(
         y = y[y < 999]
 
     if options.dupe_droplets > 0:
-        idx_droplet = torch.argwhere(
-            torch.sum(torch.stack([torch.tensor(y == i) for i in options.groups[0]], dim=0), dim=0)
-        )[:, 0]
+        y_list = [(y == i).clone().detach() for i in options.groups[0]]
+        y_tmp = torch.stack(y_list, dim=0)
+        y_tmp = torch.sum(y_tmp, dim=0)
+        idx_droplet = torch.argwhere(y_tmp)[:, 0]
         x = torch.cat([x, torch.cat([x[idx_droplet] for _ in range(options.dupe_droplets)], dim=0)])
         y = torch.cat([y, torch.cat([y[idx_droplet] for _ in range(options.dupe_droplets)])])
 

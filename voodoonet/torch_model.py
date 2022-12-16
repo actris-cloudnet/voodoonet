@@ -5,8 +5,6 @@ from collections import OrderedDict
 
 import torch
 from torch import Tensor, nn
-from torch.optim import Adam
-from torch.optim.lr_scheduler import StepLR
 from tqdm.auto import tqdm
 
 import wandb
@@ -42,13 +40,14 @@ class VoodooNet(nn.Module):
         self.convolution_network = self._define_cnn()
         self.dense_network = self._define_dense(dropout=0.0)
 
-        # training paramters
+        # training parameters:
         self.loss = nn.CrossEntropyLoss()
-        self.optimizer = Adam
-        self.lr = training_options.learning_rate
-        self.lr_decay = training_options.learning_rate_decay
-        self.lr_decay_step = training_options.learning_rate_decay_steps
-        self.lr_scheduler = StepLR
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=training_options.learning_rate)
+        self.lr_scheduler = torch.optim.lr_scheduler.StepLR(
+            self.optimizer,
+            step_size=training_options.learning_rate_decay_steps,
+            gamma=training_options.learning_rate_decay,
+        )
 
         # Capture a dictionary of hyperparameters with config
         if self.options.use_wandb is True:
@@ -116,7 +115,7 @@ class VoodooNet(nn.Module):
 
         if train:
             loss.backward()
-            self.optimizer.step()  # type: ignore
+            self.optimizer.step()
 
         return cm, loss
 
@@ -138,11 +137,6 @@ class VoodooNet(nn.Module):
         if self.options.use_wandb is True:
             assert self.wandb is not None
             self.wandb.watch(self, self.loss, log="all", log_freq=100)
-
-        self.optimizer = self.optimizer(self.parameters(), lr=self.lr)  # type: ignore
-        self.lr_scheduler = self.lr_scheduler(
-            self.optimizer, step_size=self.lr_decay_step, gamma=self.lr_decay  # type: ignore
-        )
 
         for epoch in range(epochs):
             iterator = tqdm(
@@ -187,7 +181,7 @@ class VoodooNet(nn.Module):
             if self.options.use_wandb is True:
                 assert self.wandb is not None
                 self.wandb.log({"learning_rate": self.optimizer.param_groups[0]["lr"]})
-            self.lr_scheduler.step()  # type: ignore
+            self.lr_scheduler.step()
 
     def validation(self, X: Tensor, y: Tensor, batch_size: int = 256) -> tuple:
         iterator = tqdm(range(0, len(X), batch_size), ncols=100, unit=" batches - validation")
@@ -223,7 +217,7 @@ class VoodooNet(nn.Module):
     def save(self, path: str, aux: dict) -> None:
         checkpoint = {
             "state_dict": self.state_dict(),
-            "optimizer": self.optimizer.state_dict(),  # type: ignore
+            "optimizer": self.optimizer.state_dict(),
             "auxiliary": aux,
         }
 

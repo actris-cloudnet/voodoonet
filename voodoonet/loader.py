@@ -52,47 +52,46 @@ def load_training_data(
 ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
     data = torch.load(filename)
 
-    X, y = data["features"], data["labels"]
-    X = torch.unsqueeze(X, dim=1)
-    X = torch.transpose(X, 3, 2)
+    x, y = data["features"], data["labels"]
+    x = torch.unsqueeze(x, dim=1)
+    x = torch.transpose(x, 3, 2)
 
     if options.garbage is not None:
         for i in options.garbage:
             y[y == i] = 999
-        X = X[y < 999]
+        x = x[y < 999]
         y = y[y < 999]
 
     if options.dupe_droplets > 0:
-        # lookup indices for cloud dorplet bearing classes
-        idx_CD = torch.argwhere(
+        idx_droplet = torch.argwhere(
             torch.sum(torch.stack([torch.tensor(y == i) for i in options.groups[0]], dim=0), dim=0)
         )[:, 0]
-        X = torch.cat([X, torch.cat([X[idx_CD] for _ in range(options.dupe_droplets)], dim=0)])
-        y = torch.cat([y, torch.cat([y[idx_CD] for _ in range(options.dupe_droplets)])])
+        x = torch.cat([x, torch.cat([x[idx_droplet] for _ in range(options.dupe_droplets)], dim=0)])
+        y = torch.cat([y, torch.cat([y[idx_droplet] for _ in range(options.dupe_droplets)])])
 
     if options.shuffle:
         perm = torch.randperm(len(y))
-        X, y = X[perm], y[perm]
+        x, y = x[perm], y[perm]
 
     # drop some percentage from the data
     if 0 < options.split < 1:
-        idx_split = int(X.shape[0] * options.split)
-        X_train, y_train = X[idx_split:, ...], y[idx_split:]
-        X_test, y_test = X[:idx_split, ...], y[:idx_split]
+        idx_split = int(x.shape[0] * options.split)
+        x_train, y_train = x[idx_split:, ...], y[idx_split:]
+        x_test, y_test = x[:idx_split, ...], y[:idx_split]
     else:
         raise ValueError("Provide split between 0 and 1!")
 
     tmp1 = torch.clone(y_train)
     tmp2 = torch.clone(y_test)
-    for i, val in enumerate(options.groups):  # i from 0, ..., ngroups-1
-        for jclass in val:
-            tmp1[y_train == jclass] = i
-            tmp2[y_test == jclass] = i
+    for i, val in enumerate(options.groups):
+        for class_no in val:
+            tmp1[y_train == class_no] = i
+            tmp2[y_test == class_no] = i
 
     y_train = tmp1
     y_test = tmp2
 
-    del tmp1, tmp2, X, y
+    del tmp1, tmp2, x, y
 
     y_train = torch.nn.functional.one_hot(
         y_train.to(torch.int64), num_classes=len(options.groups)
@@ -101,7 +100,7 @@ def load_training_data(
         y_test.to(torch.int64), num_classes=len(options.groups)
     ).float()
 
-    return X_train, y_train, X_test, y_test
+    return x_train, y_train, x_test, y_test
 
 
 class VoodooDroplet:

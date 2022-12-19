@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 – 2022-12-19
+
+- Add `n_days` parameter
+- Use `Retry` strategy
+- Bug fixes
+
 ## 0.1.0 – 2022-12-19
 
 - Optimize time-consuming functions

@@ -6,7 +6,7 @@ import netCDF4
 import numpy as np
 import requests
 import torch
-from requests.adapters import HTTPAdapter
+from requests.adapters import HTTPAdapter, Retry
 from rpgpy import read_rpg
 from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter
@@ -211,11 +211,12 @@ class VoodooDroplet:
     ) -> tuple[Tensor, Tensor]:
 
         session = requests.Session()
-        session.mount("https://", HTTPAdapter(max_retries=5))
+        retries = Retry(total=10, backoff_factor=0.2)
+        session.mount("https://", HTTPAdapter(max_retries=retries))
 
         for classification_meta in classification_metadata:
             logging.info(f"Categorize file: {classification_meta['filename']}")
-            res = requests.get(classification_meta["downloadUrl"], timeout=120)
+            res = session.get(classification_meta["downloadUrl"], timeout=20)
             with NamedTemporaryFile() as temp_file:
                 with open(temp_file.name, "wb") as f:
                     f.write(res.content)
@@ -234,7 +235,7 @@ class VoodooDroplet:
                 logging.info(f"Processing {n_files} RPG files...")
 
             for rpg_meta in rpg_files_of_day:
-                res = requests.get(rpg_meta["downloadUrl"], timeout=120)
+                res = session.get(rpg_meta["downloadUrl"], timeout=20)
                 with NamedTemporaryFile() as temp_file:
                     with open(temp_file.name, "wb") as f:
                         f.write(res.content)

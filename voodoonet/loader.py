@@ -1,5 +1,6 @@
 import logging
 import os.path
+import random
 from tempfile import NamedTemporaryFile
 
 import netCDF4
@@ -63,6 +64,7 @@ def generate_training_data_for_cloudnet(
     output_filename: str,
     options: VoodooOptions = VoodooOptions(),
     training_options: VoodooTrainingOptions = VoodooTrainingOptions(),
+    n_days: int | None = None,
 ) -> None:
     """Generate training dataset directly using Cloudnet API. Experimental."""
     url = "https://cloudnet.fmi.fi/api"
@@ -84,6 +86,12 @@ def generate_training_data_for_cloudnet(
     classification_metadata = [
         row for row in classification_metadata if row["measurementDate"] in rpg_dates
     ]
+    if n_days is not None and len(classification_metadata) > n_days:
+        classification_metadata = random.sample(classification_metadata, n_days)
+        classification_dates = [row["measurementDate"] for row in classification_metadata]
+        rpg_metadata = [
+            row for row in rpg_metadata if row["measurementDate"] in classification_dates
+        ]
     voodoo_droplet = VoodooDroplet(None, options, training_options)
     features, labels = voodoo_droplet.compile_dataset_using_api(
         rpg_metadata, classification_metadata

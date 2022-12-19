@@ -154,6 +154,7 @@ class VoodooNet(nn.Module):
 
             if self.wandb is not None:
                 self.wandb.log({"learning_rate": self.optimizer.param_groups[0]["lr"]})
+
             self.lr_scheduler.step()
 
     def _validate(self, x: Tensor, y: Tensor, batch_size: int = 256) -> tuple:

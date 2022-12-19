@@ -1,26 +1,43 @@
 import logging
 import os.path
+from tempfile import NamedTemporaryFile
 
 import netCDF4
 import numpy as np
+import requests
 import torch
+from requests.adapters import HTTPAdapter
 from rpgpy import read_rpg
 from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter
-from torch import Tensor, save
+from torch import Tensor
 
-from voodoonet import utils
-from voodoonet.utils import VoodooOptions, VoodooTrainingOptions
+from voodoonet import VoodooOptions, VoodooTrainingOptions, utils
 
 from .torch_model import VoodooNet
 
 
-def run(
+def train(
+    training_data: str,
+    trained_model: str,
+    training_options: VoodooTrainingOptions = VoodooTrainingOptions(),
+) -> None:
+    """Train a new Voodoo model."""
+    x_train, y_train, x_test, y_test = load_training_data(
+        training_data, training_options=training_options
+    )
+    model = VoodooNet(x_train.shape, options=VoodooOptions(), training_options=training_options)
+    model.optimize(x_train, y_train, x_test, y_test, epochs=training_options.epochs)
+    model.save(path=trained_model, aux=model.options.dict())
+
+
+def infer(
     rpg_lv0_files: list,
     target_time: np.ndarray | None = None,
     options: VoodooOptions = VoodooOptions(),
     training_options: VoodooTrainingOptions = VoodooTrainingOptions(),
 ) -> np.ndarray:
+    """Use existing Voodoo model to infer measurement data."""
     voodoo_droplet = VoodooDroplet(target_time, options, training_options)
     for filename in rpg_lv0_files:
         voodoo_droplet.calc_prob(filename)
@@ -30,25 +47,52 @@ def run(
 def generate_training_data(
     rpg_lv0_files: list,
     classification_files: list,
+    output_filename: str,
     options: VoodooOptions = VoodooOptions(),
     training_options: VoodooTrainingOptions = VoodooTrainingOptions(),
-) -> tuple[Tensor, Tensor]:
-    voodoo_droplet = VoodooDroplet(None, options, training_options)
-    voodoo_droplet.compile_dataset(rpg_lv0_files, classification_files)
-    return voodoo_droplet.features, voodoo_droplet.labels
-
-
-def save_training_data(
-    features: Tensor,
-    labels: Tensor,
-    file_name: str,
 ) -> None:
-    save({"features": features, "labels": labels}, file_name)
+    """Generate Voodoo training dataset."""
+    voodoo_droplet = VoodooDroplet(None, options, training_options)
+    features, labels = voodoo_droplet.compile_dataset(rpg_lv0_files, classification_files)
+    _save_training_data(features, labels, output_filename)
+
+
+def generate_training_data_for_cloudnet(
+    site: str,
+    output_filename: str,
+    options: VoodooOptions = VoodooOptions(),
+    training_options: VoodooTrainingOptions = VoodooTrainingOptions(),
+) -> None:
+    """Generate training dataset directly using Cloudnet API. Experimental."""
+    url = "https://cloudnet.fmi.fi/api"
+    classification_metadata = requests.get(
+        f"{url}/files",
+        {"site": site, "product": "classification"},
+        timeout=60,
+    ).json()
+    rpg_metadata = requests.get(
+        f"{url}/raw-files", {"site": site, "instrument": "rpg-fmcw-94"}, timeout=60
+    ).json()
+    classification_dates = [row["measurementDate"] for row in classification_metadata]
+    rpg_metadata = [
+        row
+        for row in rpg_metadata
+        if row["filename"].endswith(".LV0") and row["measurementDate"] in classification_dates
+    ]
+    rpg_dates = list(set(row["measurementDate"] for row in rpg_metadata))
+    classification_metadata = [
+        row for row in classification_metadata if row["measurementDate"] in rpg_dates
+    ]
+    voodoo_droplet = VoodooDroplet(None, options, training_options)
+    features, labels = voodoo_droplet.compile_dataset_using_api(
+        rpg_metadata, classification_metadata
+    )
+    _save_training_data(features, labels, output_filename)
 
 
 def load_training_data(
     filename: str,
-    options: VoodooTrainingOptions,
+    training_options: VoodooTrainingOptions = VoodooTrainingOptions(),
 ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
     data = torch.load(filename)
 
@@ -56,27 +100,31 @@ def load_training_data(
     x = torch.unsqueeze(x, dim=1)
     x = torch.transpose(x, 3, 2)
 
-    if options.garbage is not None:
-        for i in options.garbage:
+    if training_options.garbage is not None:
+        for i in training_options.garbage:
             y[y == i] = 999
         x = x[y < 999]
         y = y[y < 999]
 
-    if options.dupe_droplets > 0:
-        y_list = [(y == i).clone().detach() for i in options.groups[0]]
+    if training_options.dupe_droplets > 0:
+        y_list = [(y == i).clone().detach() for i in training_options.groups[0]]
         y_tmp = torch.stack(y_list, dim=0)
         y_tmp = torch.sum(y_tmp, dim=0)
         idx_droplet = torch.argwhere(y_tmp)[:, 0]
-        x = torch.cat([x, torch.cat([x[idx_droplet] for _ in range(options.dupe_droplets)], dim=0)])
-        y = torch.cat([y, torch.cat([y[idx_droplet] for _ in range(options.dupe_droplets)])])
+        x = torch.cat(
+            [x, torch.cat([x[idx_droplet] for _ in range(training_options.dupe_droplets)], dim=0)]
+        )
+        y = torch.cat(
+            [y, torch.cat([y[idx_droplet] for _ in range(training_options.dupe_droplets)])]
+        )
 
-    if options.shuffle:
+    if training_options.shuffle:
         perm = torch.randperm(len(y))
         x, y = x[perm], y[perm]
 
     # drop some percentage from the data
-    if 0 < options.split < 1:
-        idx_split = int(x.shape[0] * options.split)
+    if 0 < training_options.split < 1:
+        idx_split = int(x.shape[0] * training_options.split)
         x_train, y_train = x[idx_split:, ...], y[idx_split:]
         x_test, y_test = x[:idx_split, ...], y[:idx_split]
     else:
@@ -84,7 +132,7 @@ def load_training_data(
 
     tmp1 = torch.clone(y_train)
     tmp2 = torch.clone(y_test)
-    for i, val in enumerate(options.groups):
+    for i, val in enumerate(training_options.groups):
         for class_no in val:
             tmp1[y_train == class_no] = i
             tmp2[y_test == class_no] = i
@@ -95,10 +143,10 @@ def load_training_data(
     del tmp1, tmp2, x, y
 
     y_train = torch.nn.functional.one_hot(
-        y_train.to(torch.int64), num_classes=len(options.groups)
+        y_train.to(torch.int64), num_classes=len(training_options.groups)
     ).float()
     y_test = torch.nn.functional.one_hot(
-        y_test.to(torch.int64), num_classes=len(options.groups)
+        y_test.to(torch.int64), num_classes=len(training_options.groups)
     ).float()
 
     return x_train, y_train, x_test, y_test
@@ -115,8 +163,8 @@ class VoodooDroplet:
         self.options = options
         self.training_options = training_options
         self.prob_liquid = np.array([])
-        self.features = Tensor([])
-        self.labels = Tensor([])
+        self._feature_list: list = []
+        self._label_list: list = []
 
     def calc_prob(self, filename: str) -> None:
         spectra_norm, non_zero_mask, time_ind = self._extract_features(filename)
@@ -127,10 +175,11 @@ class VoodooDroplet:
             prob = prob[:, :, 0]
             self.prob_liquid[time_ind, :] = prob
 
-    def compile_dataset(self, rpg_lv0_files: list[str], target_class_files: list[str]) -> None:
-        feature_list = []
-        label_list = []
-        for classification_file in sorted(target_class_files):
+    def compile_dataset(
+        self, rpg_files: list[str], target_class_files: list[str]
+    ) -> tuple[Tensor, Tensor]:
+
+        for classification_file in target_class_files:
             logging.info(f"Categorize file: {os.path.basename(classification_file)}")
             with netCDF4.Dataset(classification_file) as nc:
                 target_classification = nc.variables["target_classification"][:]
@@ -139,29 +188,101 @@ class VoodooDroplet:
                 self.target_time = utils.decimal_hour2unix(
                     [year, month, day], nc.variables["time"][:]
                 )
-            daily_rpg_lv0_files = utils.filter_list(rpg_lv0_files, [year[2:], month, day])
-            if (n_files := len(daily_rpg_lv0_files)) > 0:
+            rpg_files_of_day = utils.filter_list(rpg_files, [year[2:], month, day])
+
+            if (n_files := len(rpg_files_of_day)) > 0:
                 logging.info(f"Processing {n_files} RPG files...")
-            for filename in daily_rpg_lv0_files:
+
+            for filename in rpg_files_of_day:
+                logging.debug(filename)
                 assert isinstance(filename, str)
                 features, non_zero_mask, time_ind = self._extract_features(filename)
-                classes = target_classification[time_ind[0], :]
-                status = detection_status[time_ind[0], :]
-                ind = np.where(non_zero_mask)
-                features, labels = utils.keep_valid_samples(
-                    features, classes[ind[0], ind[1]], status[ind[0], ind[1]]
-                )
-                feature_list.append(features)
-                label_list.append(labels)
-        if len(feature_list) > 0 and len(label_list) > 0:
-            self.features = utils.numpy_arrays2tensor(feature_list)
-            self.labels = utils.numpy_arrays2tensor(label_list)
-        else:
-            logging.error(
-                "Can not generate training data set. No valid categorize / RPG Level 0 files."
-            )
+                try:
+                    self._append_features(
+                        time_ind, target_classification, detection_status, non_zero_mask, features
+                    )
+                except ValueError:
+                    continue
+        return self._convert_features()
 
-    def _extract_features(self, filename: str) -> tuple:
+    def compile_dataset_using_api(
+        self, rpg_metadata: list[dict], classification_metadata: list[dict]
+    ) -> tuple[Tensor, Tensor]:
+
+        session = requests.Session()
+        session.mount("https://", HTTPAdapter(max_retries=5))
+
+        for classification_meta in classification_metadata:
+            logging.info(f"Categorize file: {classification_meta['filename']}")
+            res = requests.get(classification_meta["downloadUrl"], timeout=120)
+            with NamedTemporaryFile() as temp_file:
+                with open(temp_file.name, "wb") as f:
+                    f.write(res.content)
+                with netCDF4.Dataset(temp_file.name) as nc:
+                    target_classification = nc.variables["target_classification"][:]
+                    detection_status = nc.variables["detection_status"][:]
+                    self.target_time = utils.decimal_hour2unix(
+                        [nc.year, nc.month, nc.day], nc.variables["time"][:]
+                    )
+            rpg_files_of_day = [
+                row
+                for row in rpg_metadata
+                if row["measurementDate"] == classification_meta["measurementDate"]
+            ]
+            if (n_files := len(rpg_files_of_day)) > 0:
+                logging.info(f"Processing {n_files} RPG files...")
+
+            for rpg_meta in rpg_files_of_day:
+                res = requests.get(rpg_meta["downloadUrl"], timeout=120)
+                with NamedTemporaryFile() as temp_file:
+                    with open(temp_file.name, "wb") as f:
+                        f.write(res.content)
+                        features, non_zero_mask, time_ind = self._extract_features(temp_file.name)
+                    try:
+                        self._append_features(
+                            time_ind,
+                            target_classification,
+                            detection_status,
+                            non_zero_mask,
+                            features,
+                        )
+                    except ValueError:
+                        continue
+        return self._convert_features()
+
+    def _append_features(
+        self,
+        time_ind: np.ndarray,
+        target_classification: np.ndarray,
+        detection_status: np.ndarray,
+        non_zero_mask: np.ndarray,
+        features: np.ndarray,
+    ) -> None:
+        if len(time_ind) == 0:
+            raise ValueError
+        classes = target_classification[time_ind, :]
+        status = detection_status[time_ind, :]
+        ind = np.where(non_zero_mask)
+        features, labels = utils.keep_valid_samples(features, classes[ind], status[ind])
+        try:
+            if len(labels) == 0:
+                raise ValueError
+        except TypeError as exc:
+            raise ValueError from exc
+        assert features.ndim == 3
+        assert len(labels) == features.shape[0]
+        self._feature_list.append(features)
+        self._label_list.append(labels)
+
+    def _convert_features(self) -> tuple[Tensor, Tensor]:
+        if len(self._feature_list) > 0 and len(self._label_list) > 0:
+            features_tensor = utils.numpy_arrays2tensor(self._feature_list)
+            label_tensor = utils.numpy_arrays2tensor(self._label_list)
+            return features_tensor, label_tensor
+        logging.error("No valid categorize / RPG Level 0 files.")
+        return Tensor([]), Tensor([])
+
+    def _extract_features(self, filename: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         header, data = read_rpg(filename)
         self._init_arrays(header, data)
         assert self.target_time is not None
@@ -169,7 +290,7 @@ class VoodooDroplet:
         time_ind = np.where(
             (self.target_time > min(radar_time)) & (self.target_time < max(radar_time))
         )
-        if len(time_ind[0]) == 0:
+        if len(time_ind) == 0:
             return np.array([]), np.array([]), np.array([])
         non_zero_mask = data["TotSpec"] > 0.0
         spectra = _replace_fill_value(data["TotSpec"], data["SLv"])
@@ -185,7 +306,7 @@ class VoodooDroplet:
         spectra = interp_var[ind[0], ind[1], :, :]
         spectra = utils.lin2z(spectra)
         spectra_norm = self._normalize_spectra(spectra)
-        return spectra_norm, non_zero_mask, time_ind
+        return spectra_norm, non_zero_mask, time_ind[0]
 
     def _normalize_spectra(self, spectra: np.ndarray) -> np.ndarray:
         """Normalize spectra between 0 and 1."""
@@ -279,3 +400,11 @@ def _interpolate_to_256(rpg_data: np.ndarray, rpg_header: dict) -> np.ndarray:
             spec_new[:, ia:ib, :] = f(np.linspace(old[0], old[-1], n_bins))
 
     return spec_new
+
+
+def _save_training_data(
+    features: Tensor,
+    labels: Tensor,
+    file_name: str,
+) -> None:
+    torch.save({"features": features, "labels": labels}, file_name)

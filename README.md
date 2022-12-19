@@ -33,59 +33,44 @@ pip3 install voodoonet
 
 ## Usage
 
-### Make predictions using the default settings
+### Make predictions using the default model and settings
 
 ```python
-import voodoonet
 import glob
+import voodoonet
 
 rpg_files = glob.glob('/path/to/rpg/files/*.LV0')
-probability_liquid = voodoonet.run(rpg_files)
+probability_liquid = voodoonet.infer(rpg_files)
 ```
 
-### Generate a training dataset
+### Generate a training data set
 
 ```python
-import voodoonet
 import glob
+import voodoonet
 
 rpg_files = glob.glob('/path/to/rpg/files/*.LV0')
 classification_files = glob.glob('/path/to/classification/files/*.nc')
-
-features, labels = voodoonet.generate_training_data(rpg_files, classification_files)
-voodoonet.save_training_data(features, labels, '/path/to/training_set/data.pt')
+voodoonet.generate_training_data(rpg_files, classification_files, 'training-data-set.pt')
 ```
 
 ### Train a VoodooNet model
 
 ```python
 import voodoonet
-from voodoonet import VoodooOptions, VoodooTrainingOptions
 
-x_train, y_train, x_test, y_test = voodoonet.load_training_data(
-    '/path/to/training_set/data.pt',
-    options=VoodooTrainingOptions()
-)
-
-model = voodoonet.VoodooNet(
-    x_train.shape,
-    options=VoodooOptions(),
-    training_options=VoodooTrainingOptions()
-)
-
-model.optimize(x_train, y_train, x_test, y_test, epochs=5)
-model.save(path='/path/to/models/new_model.pt', aux=model.options.dict())
+pre_computed_training_data_set = 'training-data-set.pt'
+voodoonet.train(pre_computed_training_data_set, 'trained-model.pt')
 ```
 
 ### Make predictions using the new model
 
 ```python
-import voodoonet
-from voodoonet.utils import VoodooOptions
 import glob
+import voodoonet
+from voodoonet import VoodooOptions
 
 rpg_files = glob.glob('/path/to/rpg/files/*.LV0')
-
-options = VoodooOptions(trained_model='/path/to/models/new_model.pt')
-probability_liquid = voodoonet.run(rpg_files, options=options)
+options = VoodooOptions(trained_model='new_model.pt')
+probability_liquid = voodoonet.infer(rpg_files, options=options)
 ```

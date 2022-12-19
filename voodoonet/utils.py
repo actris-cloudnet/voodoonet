@@ -49,6 +49,7 @@ class VoodooTrainingOptions:
     shuffle: bool = True
     split: float = 0.1  # -> 10% of data for validation
     wandb: WandbConfig | None = None
+    epochs: int = 3
 
 
 def time_grid(date: str, resolution: int = 30) -> np.ndarray:
@@ -97,25 +98,14 @@ def reshape(data: Tensor, mask: np.ndarray) -> np.ndarray:
     return input_reshaped
 
 
-def find_pattern(string: str) -> str | None:
-    """Search for date pattern in data path and return if found."""
-    regex = re.compile(r"\d{6}_")
-    match = regex.search(string)
-    # check if a match was found
-    if match:
-        # if a match was found, return the matched string
-        return match.group()[:-1]
-    return None
-
-
 def filter_list(rpg_lv0_files: list[str], date: list[str]) -> list[str | None]:
     regex = re.compile("".join(date))
     filtered_strings = filter(regex.search, rpg_lv0_files)
     return list(filtered_strings)
 
 
-def numpy_arrays2tensor(lists: list[np.ndarray]) -> Tensor:
-    torch_tensors = [from_numpy(np_array) for np_array in lists]
+def numpy_arrays2tensor(data: list[np.ndarray]) -> Tensor:
+    torch_tensors = [from_numpy(array) for array in data]
     return concat(torch_tensors, dim=0)
 
 

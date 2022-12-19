@@ -12,7 +12,8 @@ from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter
 from torch import Tensor
 
-from voodoonet import VoodooOptions, VoodooTrainingOptions, utils
+from voodoonet import utils
+from voodoonet.utils import VoodooOptions, VoodooTrainingOptions
 
 from .torch_model import VoodooNet
 

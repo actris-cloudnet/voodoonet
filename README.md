@@ -74,7 +74,7 @@ voodoonet.train(pre_computed_training_data_set, 'trained-model.pt')
 ```python
 import glob
 import voodoonet
-from voodoonet import VoodooOptions
+from voodoonet.utils import VoodooOptions
 
 rpg_files = glob.glob('/path/to/rpg/files/*.LV0')
 options = VoodooOptions(trained_model='new_model.pt')

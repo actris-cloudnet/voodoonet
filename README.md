@@ -31,6 +31,12 @@ pip3 install torch --extra-index-url https://download.pytorch.org/whl/cpu
 pip3 install voodoonet
 ```
 
+### Locally for development
+
+```sh
+pip3 install -e .[dev]
+```
+
 ## Usage
 
 ### Make predictions using the default model and settings

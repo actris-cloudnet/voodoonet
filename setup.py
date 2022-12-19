@@ -37,6 +37,7 @@ setup(
             "pylint",
             "mypy",
             "types-tqdm",
+            "types-requests",
         ],
     },
     classifiers=[

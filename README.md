@@ -51,13 +51,23 @@ probability_liquid = voodoonet.infer(rpg_files)
 
 ### Generate a training data set
 
+Download some RPG-FMCW-94 raw files and corresponding classification files from the [Cloudnet data portal](https://cloudnet.fmi.fi/) API. For example, for [Leipzig LIM](https://cloudnet.fmi.fi/site/leipzig-lim) between 2021-01-10 and 2021-01-15:
+```sh
+curl "https://cloudnet.fmi.fi/api/raw-files?dateFrom=2021-01-10&dateTo=2021-01-15&site=leipzig-lim&instrument=rpg-fmcw-94" | jq '.[]["downloadUrl"]' | xargs -n1 curl -O
+curl "https://cloudnet.fmi.fi/api/files?dateFrom=2021-01-10&dateTo=2021-01-15&site=leipzig-lim&product=classification" | jq '.[]["downloadUrl"]' | xargs -n1 curl -O
+```
 ```python
 import glob
 import voodoonet
 
-rpg_files = glob.glob('/path/to/rpg/files/*.LV0')
-classification_files = glob.glob('/path/to/classification/files/*.nc')
+rpg_files = glob.glob('*.LV0')
+classification_files = glob.glob('*classification.nc')
 voodoonet.generate_training_data(rpg_files, classification_files, 'training-data-set.pt')
+```
+Alternatively, just use N random days:
+```python
+import voodoonet
+voodoonet.generate_training_data_for_cloudnet('leipzig-lim', 'training-data-set.pt', n_days=5)
 ```
 
 ### Train a VoodooNet model

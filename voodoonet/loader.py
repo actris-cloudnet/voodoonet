@@ -73,10 +73,24 @@ def generate_training_data_for_cloudnet(
         {"site": site, "product": "classification"},
         timeout=60,
     ).json()
+    try:
+        classification_dates = [row["measurementDate"] for row in classification_metadata]
+    except TypeError:
+        logging.error(f"Invalid site '{site}'.")
+        return
+    if not classification_dates:
+        logging.error(f"No classification files found for site '{site}'.")
+        return
     rpg_metadata = requests.get(
-        f"{url}/raw-files", {"site": site, "instrument": "rpg-fmcw-94"}, timeout=60
+        f"{url}/raw-files",
+        {
+            "site": site,
+            "instrument": "rpg-fmcw-94",
+            "dateFrom": min(classification_dates),
+            "dateTo": max(classification_dates),
+        },
+        timeout=60,
     ).json()
-    classification_dates = [row["measurementDate"] for row in classification_metadata]
     rpg_metadata = [
         row
         for row in rpg_metadata
@@ -92,6 +106,9 @@ def generate_training_data_for_cloudnet(
         rpg_metadata = [
             row for row in rpg_metadata if row["measurementDate"] in classification_dates
         ]
+    if not classification_metadata:
+        logging.error(f"No matching classification / RPG Level 0 files found for site '{site}'.")
+        return
     voodoo_droplet = VoodooDroplet(None, options, training_options)
     features, labels = voodoo_droplet.compile_dataset_using_api(
         rpg_metadata, classification_metadata
@@ -289,7 +306,7 @@ class VoodooDroplet:
             features_tensor = utils.numpy_arrays2tensor(self._feature_list)
             label_tensor = utils.numpy_arrays2tensor(self._label_list)
             return features_tensor, label_tensor
-        logging.error("No valid categorize / RPG Level 0 files.")
+        logging.error("No valid classification / RPG Level 0 files.")
         return Tensor([]), Tensor([])
 
     def _extract_features(self, filename: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

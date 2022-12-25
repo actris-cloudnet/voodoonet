@@ -241,7 +241,7 @@ class VoodooDroplet:
 
         for classification_meta in classification_metadata:
             logging.info(f"Categorize file: {classification_meta['filename']}")
-            res = session.get(classification_meta["downloadUrl"], timeout=20)
+            res = session.get(classification_meta["downloadUrl"])
             with NamedTemporaryFile() as temp_file:
                 with open(temp_file.name, "wb") as f:
                     f.write(res.content)
@@ -260,7 +260,7 @@ class VoodooDroplet:
                 logging.info(f"Processing {n_files} RPG files...")
 
             for rpg_meta in rpg_files_of_day:
-                res = session.get(rpg_meta["downloadUrl"], timeout=20)
+                res = session.get(rpg_meta["downloadUrl"])
                 with NamedTemporaryFile() as temp_file:
                     with open(temp_file.name, "wb") as f:
                         f.write(res.content)
@@ -310,7 +310,11 @@ class VoodooDroplet:
         return Tensor([]), Tensor([])
 
     def _extract_features(self, filename: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        header, data = read_rpg(filename)
+        try:
+            header, data = read_rpg(filename)
+        except IndexError:
+            logging.error(f"Error reading RPG file {filename}")
+            return np.array([]), np.array([]), np.array([])
         self._init_arrays(header, data)
         assert self.target_time is not None
         radar_time = utils.rpg_time2unix(data["Time"])

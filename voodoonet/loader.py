@@ -188,7 +188,7 @@ class VoodooDroplet:
         self.target_time = target_time
         self.options = options
         self.training_options = training_options
-        self.prob_liquid = np.array([])
+        self.prob_liquid: np.ndarray = np.array([])
         self._feature_list: list = []
         self._label_list: list = []
 
@@ -364,7 +364,7 @@ class VoodooDroplet:
         voodoo_net.load_state_dict(
             torch.load(self.options.trained_model, map_location=self.options.device)["state_dict"]
         )
-        prediction = voodoo_net.predict(tensor, batch_size=256).to(self.options.device)
+        prediction = voodoo_net.predict(tensor, batch_size=256).to("cpu")
         return prediction
 
     def _hyperspectral_image(

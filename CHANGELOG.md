@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2 – 2023-01-11
+
+- Send predictions to cpu for voodoo post-processing
+- Make file handling more robust
+- Use human-readable `pylint` problem names
+- Update `checkout` and `setup-python` versions
+- Improve API response parsing
+
 ## 0.1.1 – 2022-12-19
 
 - Add `n_days` parameter

@@ -117,8 +117,8 @@ class VoodooNet(nn.Module):
 
         for epoch in range(epochs):
 
-            batch_cm = Tensor([0, 0, 0, 0])
-            batch_loss = Tensor([0])
+            batch_cm = Tensor([0, 0, 0, 0]).to(self.options.device)
+            batch_loss = Tensor([0]).to(self.options.device)
 
             iterator = tqdm(
                 range(0, len(x), batch_size),
@@ -158,8 +158,8 @@ class VoodooNet(nn.Module):
             self.lr_scheduler.step()
 
     def _validate(self, x: Tensor, y: Tensor, batch_size: int = 256) -> tuple:
-        val_cm = Tensor([0, 0, 0, 0])
-        val_loss = Tensor([0])
+        val_cm = Tensor([0, 0, 0, 0]).to(self.options.device)
+        val_loss = Tensor([0]).to(self.options.device)
         j = 0
         for j in range(0, len(x), batch_size):
             test_batch_x = x[j : j + batch_size].to(self.options.device)

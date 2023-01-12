@@ -187,7 +187,7 @@ def metrics_to_dict(metrics: Tensor) -> dict:
 
 def calc_cm(pred_labels: Tensor, true_labels: Tensor) -> Tensor:
     """Returns confusion matrix entries in the following order: TP, FP, FN, TN"""
-    cm = BinaryConfusionMatrix()
+    cm = BinaryConfusionMatrix().to(pred_labels.device)
     return cm(pred_labels, true_labels).flatten()
 
 

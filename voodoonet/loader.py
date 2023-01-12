@@ -23,12 +23,13 @@ def train(
     training_data: str,
     trained_model: str,
     training_options: VoodooTrainingOptions = VoodooTrainingOptions(),
+    model_options: VoodooOptions = VoodooOptions()
 ) -> None:
     """Train a new Voodoo model."""
     x_train, y_train, x_test, y_test = load_training_data(
         training_data, training_options=training_options
     )
-    model = VoodooNet(x_train.shape, options=VoodooOptions(), training_options=training_options)
+    model = VoodooNet(x_train.shape, options=model_options, training_options=training_options)
     model.optimize(x_train, y_train, x_test, y_test, epochs=training_options.epochs)
     model.save(path=trained_model, aux=model.options.dict())
 

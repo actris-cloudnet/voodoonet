@@ -23,13 +23,15 @@ def train(
     training_data: str,
     trained_model: str,
     training_options: VoodooTrainingOptions = VoodooTrainingOptions(),
-    model_options: VoodooOptions = VoodooOptions()
+    model_options: VoodooOptions = VoodooOptions(),
 ) -> None:
     """Train a new Voodoo model."""
     x_train, y_train, x_test, y_test = load_training_data(
         training_data, training_options=training_options
     )
-    model = VoodooNet(x_train.shape, options=model_options, training_options=training_options)
+    model = VoodooNet(
+        x_train.shape, options=model_options, training_options=training_options
+    )
     model.optimize(x_train, y_train, x_test, y_test, epochs=training_options.epochs)
     model.save(path=trained_model, aux=model.options.dict())
 
@@ -56,7 +58,9 @@ def generate_training_data(
 ) -> None:
     """Generate Voodoo training dataset."""
     voodoo_droplet = VoodooDroplet(None, options, training_options)
-    features, labels = voodoo_droplet.compile_dataset(rpg_lv0_files, classification_files)
+    features, labels = voodoo_droplet.compile_dataset(
+        rpg_lv0_files, classification_files
+    )
     _save_training_data(features, labels, output_filename)
 
 
@@ -66,8 +70,12 @@ def generate_training_data_for_cloudnet(
     options: VoodooOptions = VoodooOptions(),
     training_options: VoodooTrainingOptions = VoodooTrainingOptions(),
     n_days: int | None = None,
+    tempfile_prefix: str | None = None,
 ) -> None:
-    """Generate training dataset directly using Cloudnet API. Experimental."""
+    """Generate training dataset directly using Cloudnet API.
+
+    Experimental.
+    """
     url = "https://cloudnet.fmi.fi/api"
     classification_metadata = requests.get(
         f"{url}/files",
@@ -75,7 +83,9 @@ def generate_training_data_for_cloudnet(
         timeout=60,
     ).json()
     try:
-        classification_dates = [row["measurementDate"] for row in classification_metadata]
+        classification_dates = [
+            row["measurementDate"] for row in classification_metadata
+        ]
     except TypeError:
         logging.error(f"Invalid site '{site}'.")
         return
@@ -95,7 +105,8 @@ def generate_training_data_for_cloudnet(
     rpg_metadata = [
         row
         for row in rpg_metadata
-        if row["filename"].endswith(".LV0") and row["measurementDate"] in classification_dates
+        if row["filename"].endswith(".LV0")
+        and row["measurementDate"] in classification_dates
     ]
     rpg_dates = list(set(row["measurementDate"] for row in rpg_metadata))
     classification_metadata = [
@@ -103,16 +114,22 @@ def generate_training_data_for_cloudnet(
     ]
     if n_days is not None and len(classification_metadata) > n_days:
         classification_metadata = random.sample(classification_metadata, n_days)
-        classification_dates = [row["measurementDate"] for row in classification_metadata]
+        classification_dates = [
+            row["measurementDate"] for row in classification_metadata
+        ]
         rpg_metadata = [
-            row for row in rpg_metadata if row["measurementDate"] in classification_dates
+            row
+            for row in rpg_metadata
+            if row["measurementDate"] in classification_dates
         ]
     if not classification_metadata:
-        logging.error(f"No matching classification / RPG Level 0 files found for site '{site}'.")
+        logging.error(
+            f"No matching classification / RPG Level 0 files found for site '{site}'."
+        )
         return
     voodoo_droplet = VoodooDroplet(None, options, training_options)
     features, labels = voodoo_droplet.compile_dataset_using_api(
-        rpg_metadata, classification_metadata
+        rpg_metadata, classification_metadata, tempfile_prefix=tempfile_prefix
     )
     _save_training_data(features, labels, output_filename)
 
@@ -139,10 +156,21 @@ def load_training_data(
         y_tmp = torch.sum(y_tmp, dim=0)
         idx_droplet = torch.argwhere(y_tmp)[:, 0]
         x = torch.cat(
-            [x, torch.cat([x[idx_droplet] for _ in range(training_options.dupe_droplets)], dim=0)]
+            [
+                x,
+                torch.cat(
+                    [x[idx_droplet] for _ in range(training_options.dupe_droplets)],
+                    dim=0,
+                ),
+            ]
         )
         y = torch.cat(
-            [y, torch.cat([y[idx_droplet] for _ in range(training_options.dupe_droplets)])]
+            [
+                y,
+                torch.cat(
+                    [y[idx_droplet] for _ in range(training_options.dupe_droplets)]
+                ),
+            ]
         )
 
     if training_options.shuffle:
@@ -226,14 +254,21 @@ class VoodooDroplet:
                 features, non_zero_mask, time_ind = self._extract_features(filename)
                 try:
                     self._append_features(
-                        time_ind, target_classification, detection_status, non_zero_mask, features
+                        time_ind,
+                        target_classification,
+                        detection_status,
+                        non_zero_mask,
+                        features,
                     )
                 except ValueError:
                     continue
         return self._convert_features()
 
     def compile_dataset_using_api(
-        self, rpg_metadata: list[dict], classification_metadata: list[dict]
+        self,
+        rpg_metadata: list[dict],
+        classification_metadata: list[dict],
+        tempfile_prefix: str | None = None,
     ) -> tuple[Tensor, Tensor]:
 
         session = requests.Session()
@@ -243,7 +278,7 @@ class VoodooDroplet:
         for classification_meta in classification_metadata:
             logging.info(f"Categorize file: {classification_meta['filename']}")
             res = session.get(classification_meta["downloadUrl"])
-            with NamedTemporaryFile() as temp_file:
+            with NamedTemporaryFile(prefix=tempfile_prefix) as temp_file:
                 with open(temp_file.name, "wb") as f:
                     f.write(res.content)
                 with netCDF4.Dataset(temp_file.name) as nc:
@@ -262,10 +297,12 @@ class VoodooDroplet:
 
             for rpg_meta in rpg_files_of_day:
                 res = session.get(rpg_meta["downloadUrl"])
-                with NamedTemporaryFile() as temp_file:
+                with NamedTemporaryFile(prefix=tempfile_prefix) as temp_file:
                     with open(temp_file.name, "wb") as f:
                         f.write(res.content)
-                        features, non_zero_mask, time_ind = self._extract_features(temp_file.name)
+                        features, non_zero_mask, time_ind = self._extract_features(
+                            temp_file.name
+                        )
                     try:
                         self._append_features(
                             time_ind,
@@ -310,7 +347,9 @@ class VoodooDroplet:
         logging.error("No valid classification / RPG Level 0 files.")
         return Tensor([]), Tensor([])
 
-    def _extract_features(self, filename: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _extract_features(
+        self, filename: str
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         try:
             header, data = read_rpg(filename)
         except IndexError:
@@ -363,7 +402,9 @@ class VoodooDroplet:
         tensor = torch.transpose(tensor, 3, 2)
         voodoo_net = VoodooNet(tensor.shape, self.options, self.training_options)
         voodoo_net.load_state_dict(
-            torch.load(self.options.trained_model, map_location=self.options.device)["state_dict"]
+            torch.load(self.options.trained_model, map_location=self.options.device)[
+                "state_dict"
+            ]
         )
         prediction = voodoo_net.predict(tensor, batch_size=256).to("cpu")
         return prediction

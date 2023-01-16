@@ -50,6 +50,7 @@ class VoodooTrainingOptions:
     split: float = 0.1  # -> 10% of data for validation
     wandb: WandbConfig | None = None
     epochs: int = 3
+    batch_size: int = 256
 
 
 def time_grid(date: str, resolution: int = 30) -> np.ndarray:

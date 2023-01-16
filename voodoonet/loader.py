@@ -32,7 +32,7 @@ def train(
     model = VoodooNet(
         x_train.shape, options=model_options, training_options=training_options
     )
-    model.optimize(x_train, y_train, x_test, y_test, epochs=training_options.epochs)
+    model.optimize(x_train, y_train, x_test, y_test, epochs=training_options.epochs,batch_size= training_options.batch_size)
     model.save(path=trained_model, aux=model.options.dict())
 
 

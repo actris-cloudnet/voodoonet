@@ -1,13 +1,12 @@
-"""
-This module contains functions for generating deep learning models with Tensorflow and Keras.
-"""
+"""This module contains functions for generating deep learning models with
+Tensorflow and Keras."""
 from collections import OrderedDict
 
 import torch
+import wandb
 from torch import Tensor, nn
 from tqdm.auto import tqdm
 
-import wandb
 from voodoonet.utils import (
     VoodooOptions,
     VoodooTrainingOptions,
@@ -24,13 +23,11 @@ class VoodooNet(nn.Module):
         options: VoodooOptions,
         training_options: VoodooTrainingOptions,
     ):
-        """
-        Defining a PyTorch model.
+        """Defining a PyTorch model.
 
         Args:
             input_shape: Shape of the input tensor
             options
-
         """
         super().__init__()
         self.input_shape = input_shape
@@ -41,7 +38,9 @@ class VoodooNet(nn.Module):
         self.dense_network = self._define_dense(dropout=0.0)
         # training parameters:
         self.loss = nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=training_options.learning_rate)
+        self.optimizer = torch.optim.Adam(
+            self.parameters(), lr=training_options.learning_rate
+        )
         self.lr_scheduler = torch.optim.lr_scheduler.StepLR(
             self.optimizer,
             step_size=training_options.learning_rate_decay_steps,
@@ -54,7 +53,9 @@ class VoodooNet(nn.Module):
         self.eval()
         pred = []
         with torch.inference_mode():
-            for i in tqdm(range(0, len(x_test), batch_size), ncols=100, unit=" batches"):
+            for i in tqdm(
+                range(0, len(x_test), batch_size), ncols=100, unit=" batches"
+            ):
                 batch_x = x_test[i : i + batch_size].to(self.options.device)
                 pred.append(self(batch_x))
         return torch.cat(pred, 0)
@@ -65,7 +66,9 @@ class VoodooNet(nn.Module):
         tensor = self.dense_network(tensor)
         return tensor
 
-    def fwd_pass(self, x: Tensor, y: Tensor, train: bool = False) -> tuple[Tensor, Tensor]:
+    def fwd_pass(
+        self, x: Tensor, y: Tensor, train: bool = False
+    ) -> tuple[Tensor, Tensor]:
         if train:
             self.zero_grad()
 
@@ -81,9 +84,12 @@ class VoodooNet(nn.Module):
 
     def print_nparams(self) -> None:
         pytorch_total_params = sum(p.numel() for p in self.parameters())
-        pytorch_trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        pytorch_trainable_params = sum(
+            p.numel() for p in self.parameters() if p.requires_grad
+        )
         print(
-            f"Total non-trainable parameters: {pytorch_total_params - pytorch_trainable_params:,d}"
+            "Total non-trainable parameters:"
+            f" {pytorch_total_params - pytorch_trainable_params:,d}"
         )
         print(f"    Total trainable parameters: {pytorch_trainable_params:_d}")
         print(f"             Total  parameters: {pytorch_total_params:_d}")
@@ -108,7 +114,6 @@ class VoodooNet(nn.Module):
         epochs: int = 2,
         logging_frequency: int = 20,
     ) -> None:
-
         self.to(self.options.device)
         self.train()
 
@@ -116,7 +121,6 @@ class VoodooNet(nn.Module):
             self.wandb.watch(self, self.loss, log="all", log_freq=100)
 
         for epoch in range(epochs):
-
             batch_cm = Tensor([0, 0, 0, 0]).to(self.options.device)
             batch_loss = Tensor([0]).to(self.options.device)
 
@@ -184,7 +188,9 @@ class VoodooNet(nn.Module):
         )
         conv_2d = OrderedDict()
         for i, (ifltrs, ikrn, istride, ipad) in iterator:
-            conv_2d.update({f"conv2d_{i}": Conv2DUnit(in_shape, ifltrs, ikrn, istride, ipad)})
+            conv_2d.update(
+                {f"conv2d_{i}": Conv2DUnit(in_shape, ifltrs, ikrn, istride, ipad)}
+            )
             in_shape = ifltrs
         return nn.Sequential(conv_2d)  # type: ignore
 
@@ -196,7 +202,9 @@ class VoodooNet(nn.Module):
             dense_unit = DenseUnit(in_shape, inodes, dropout)
             dense.update({f"dense_{i}": dense_unit})
             in_shape = inodes
-        output_unit = OutputUnit(in_shape, self.options.output_shape, self.activation_fun)
+        output_unit = OutputUnit(
+            in_shape, self.options.output_shape, self.activation_fun
+        )
         dense.update({f"dense_{i + 2}": output_unit})  # type: ignore
         return nn.Sequential(dense)  # type: ignore
 

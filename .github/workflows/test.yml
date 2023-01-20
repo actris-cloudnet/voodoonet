@@ -1,6 +1,6 @@
 name: VoodooNet CI
 
-on: [push,pull_request]
+on: [push, pull_request]
 
 jobs:
   build:
@@ -10,7 +10,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10"]
+        python-version: ['3.10']
 
     steps:
     - uses: actions/checkout@v3
@@ -25,10 +25,16 @@ jobs:
         pip3 install .[dev]
     - name: Lint with pylint
       run: |
-        pylint voodoonet --errors-only
+        pylint voodoonet
+    - name: Check format with black
+      run: |
+        black --check voodoonet
+    - name: Check imports with isort
+      run: |
+        isort --check voodoonet
     - name: Typecheck with mypy
       run: |
-        mypy --ignore-missing-imports --check-untyped-defs voodoonet/ tests/
+        mypy voodoonet tests
     - name: Test with pytest-flakefinder
       run: |
         pytest --flake-finder --flake-runs=2

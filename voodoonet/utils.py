@@ -15,7 +15,9 @@ Ints = tuple[int, ...]
 
 @dataclass
 class VoodooOptions:
-    trained_model: str = f"{os.path.dirname(__file__)}/trained_models/Vnet2_0-dy0.00-fnXX-cuda0.pt"
+    trained_model: str = (
+        f"{os.path.dirname(__file__)}/trained_models/Vnet2_0-dy0.00-fnXX-cuda0.pt"
+    )
     kernel_sizes: IntTuples = ((3, 3), (3, 3), (1, 3), (1, 3), (1, 3))
     pad_sizes: IntTuples = ((1, 1), (1, 1), (0, 1), (0, 1), (0, 1))
     stride_sizes: IntTuples = ((1, 2), (1, 2), (1, 2), (2, 2), (1, 2))
@@ -113,7 +115,6 @@ def numpy_arrays2tensor(data: list[np.ndarray]) -> Tensor:
 def keep_valid_samples(
     features: np.ndarray, target_class: np.ndarray, detect_status: np.ndarray
 ) -> tuple:
-
     valid = load_training_mask(target_class, detect_status)
     idx_valid_samples = np.where(valid)
     if len(idx_valid_samples) < 1:
@@ -187,8 +188,10 @@ def metrics_to_dict(metrics: Tensor) -> dict:
 
 
 def calc_cm(pred_labels: Tensor, true_labels: Tensor) -> Tensor:
-    """Returns confusion matrix entries in the following order: TP, FP, FN, TN"""
-    cm = BinaryConfusionMatrix().to(pred_labels.device)
+    """Returns confusion matrix entries in the following order: TP, FP, FN,
+    TN."""
+    cm = BinaryConfusionMatrix()
+    cm.to(pred_labels.device)
     return cm(pred_labels, true_labels).flatten()
 
 

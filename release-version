@@ -25,9 +25,13 @@ def main(component: str) -> None:
         case "minor":
             new_version = Version(old_version.major, old_version.minor + 1, 0)
         case "patch":
-            new_version = Version(old_version.major, old_version.minor, old_version.patch + 1)
+            new_version = Version(
+                old_version.major, old_version.minor, old_version.patch + 1
+            )
     entry = _read_changelog(old_version)
-    if not _confirm(f"Updating VoodooNet version {old_version} -> {new_version}. Continue?"):
+    if not _confirm(
+        f"Updating VoodooNet version {old_version} -> {new_version}. Continue?"
+    ):
         return
     print(f"\nCurrent changelog entry in {CHANGELOG_FILE}:\n\n{entry}\n")
     if not _confirm("Use this for the release?"):
@@ -71,7 +75,9 @@ def _read_int(text: str, key: str) -> int:
 
 
 def _write_int(text: str, key: str, value: int) -> str:
-    return re.sub(rf"^{key} = \d+$", f"{key} = {value}", text, flags=re.M)  # pylint: disable=W1401
+    return re.sub(
+        rf"^{key} = \d+$", f"{key} = {value}", text, flags=re.M
+    )  # pylint: disable=W1401
 
 
 def _read_version() -> Version:
@@ -99,8 +105,10 @@ def _read_changelog(old_version: Version) -> str:
     if entry_start is None:
         old_tag = f"v{old_version}"
         print(
-            f"ERROR: No changelog entry found! Updating {CHANGELOG_FILE} with commits "
-            f"since {old_tag}:\n",
+            (
+                "ERROR: No changelog entry found! Updating"
+                f" {CHANGELOG_FILE} with commits since {old_tag}:\n"
+            ),
             file=sys.stderr,
         )
         git_log = subprocess.run(
@@ -114,18 +122,26 @@ def _read_changelog(old_version: Version) -> str:
             file=sys.stderr,
         )
         new_content = re.sub(
-            "^##[^#]", f"## Unpublished\n\n{git_log}\n\n## ", old_content, count=1, flags=re.M
+            "^##[^#]",
+            f"## Unpublished\n\n{git_log}\n\n## ",
+            old_content,
+            count=1,
+            flags=re.M,
         )
         path.write_text(new_content, encoding="utf-8")
         sys.exit(1)
     entry_end = re.search(r"^##[^#]", old_content[entry_start.end() :], re.M)
     if entry_end is None:
         raise ValueError
-    entry = old_content[entry_start.end() : entry_start.end() + entry_end.start()].strip()
+    entry = old_content[
+        entry_start.end() : entry_start.end() + entry_end.start()
+    ].strip()
     if not entry:
         print(
-            f'ERROR: Changelog entry is empty! Please specify your changes in "Unpublished" '
-            f"section of {CHANGELOG_FILE}",
+            (
+                "ERROR: Changelog entry is empty! Please specify your changes"
+                f' in "Unpublished" section of {CHANGELOG_FILE}'
+            ),
             file=sys.stderr,
         )
         sys.exit(1)
@@ -136,7 +152,9 @@ def _update_changelog(version: Version) -> None:
     today = date.today().isoformat()
     p = Path(CHANGELOG_FILE)
     old_content = p.read_text(encoding="utf-8")
-    new_content = re.sub("^## Unpublished$", f"## {version} – {today}", old_content, flags=re.M)
+    new_content = re.sub(
+        "^## Unpublished$", f"## {version} – {today}", old_content, flags=re.M
+    )
     assert new_content != old_content, f"Failed to update {CHANGELOG_FILE}"
     p.write_text(new_content, encoding="utf-8")
 

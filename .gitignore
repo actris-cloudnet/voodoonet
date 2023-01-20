@@ -1,6 +1,7 @@
 try_voodoo.py
 .idea/
 venv/
+env/
 *__pycache__*
 tests/source_data/
 docs/html/

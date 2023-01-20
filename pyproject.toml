@@ -1,0 +1,78 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools"]
+
+[project]
+authors = [
+  {name = "Willi Schimmel", email = "willi.schimmel@uni-leipzig.de"}
+]
+classifiers = [
+  "Programming Language :: Python :: 3.10",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering"
+]
+dependencies = [
+  "numpy",
+  "scipy",
+  "tqdm",
+  "rpgpy>=0.12.1",
+  "wandb",
+  "torchmetrics"
+]
+description = "Machine learning application for detecting liquid droplets in mixed-phase clouds using Doppler cloud radar spectra"
+dynamic = ["version"]
+license = {file = "LICENSE"}
+name = "voodoonet"
+readme = "README.md"
+requires-python = ">=3.10"
+
+[project.optional-dependencies]
+dev = [
+  "pre-commit",
+  "pytest",
+  "pytest-flakefinder",
+  "pylint",
+  "mypy",
+  "black",
+  "isort",
+  "docformatter",
+  "types-tqdm",
+  "types-requests"
+]
+
+[project.urls]
+"Bug Tracker" = "https://github.com/actris-cloudnet/voodoonet/issues"
+changelog = "https://github.com/actris-cloudnet/voodoonet/blob/main/CHANGELOG.md"
+homepage = "https://github.com/actris-cloudnet/voodoonet"
+repository = "https://github.com/actris-cloudnet/voodoonet"
+
+[tool.black]
+line-length = 88
+preview = true
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
+
+[tool.mypy]
+check_untyped_defs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+no_implicit_optional = true
+warn_unused_ignores = true
+
+[tool.pylint]
+good-names = ["i", "j", "k", "v", "f", "nc"]
+ignore-patterns = "test_.*\\.py"
+max-line-length = 88
+
+[tool.setuptools.dynamic]
+version = {attr = "voodoonet.version.__version__"}
+
+[tool.setuptools.package-data]
+voodoonet = ["*.pt", "voodoo_logo.png"]
+
+[tool.setuptools.packages.find]
+where = ["."]

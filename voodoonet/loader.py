@@ -32,7 +32,14 @@ def train(
     model = VoodooNet(
         x_train.shape, options=model_options, training_options=training_options
     )
-    model.optimize(x_train, y_train, x_test, y_test, epochs=training_options.epochs,batch_size= training_options.batch_size)
+    model.optimize(
+        x_train,
+        y_train,
+        x_test,
+        y_test,
+        epochs=training_options.epochs,
+        batch_size=training_options.batch_size,
+    )
     model.save(path=trained_model, aux=model.options.dict())
 
 
@@ -233,7 +240,6 @@ class VoodooDroplet:
     def compile_dataset(
         self, rpg_files: list[str], target_class_files: list[str]
     ) -> tuple[Tensor, Tensor]:
-
         for classification_file in target_class_files:
             logging.info(f"Categorize file: {os.path.basename(classification_file)}")
             with netCDF4.Dataset(classification_file) as nc:
@@ -270,7 +276,6 @@ class VoodooDroplet:
         classification_metadata: list[dict],
         tempfile_prefix: str | None = None,
     ) -> tuple[Tensor, Tensor]:
-
         session = requests.Session()
         retries = Retry(total=10, backoff_factor=0.2)
         session.mount("https://", HTTPAdapter(max_retries=retries))
@@ -300,9 +305,11 @@ class VoodooDroplet:
                 with NamedTemporaryFile(prefix=tempfile_prefix) as temp_file:
                     with open(temp_file.name, "wb") as f:
                         f.write(res.content)
-                        features, non_zero_mask, time_ind = self._extract_features(
-                            temp_file.name
-                        )
+                        (
+                            features,
+                            non_zero_mask,
+                            time_ind,
+                        ) = self._extract_features(temp_file.name)
                     try:
                         self._append_features(
                             time_ind,
@@ -416,7 +423,6 @@ class VoodooDroplet:
         mask: np.ndarray,
         time_new: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray]:
-
         n_time_new = len(time_new)
         n_time, n_range, n_vel = spec_vh.shape
         mid = self.options.n_channels // 2

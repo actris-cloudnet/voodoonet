@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3 – 2023-04-27
+
+- Add `batch_size` to training options
+- Add model options to train argument and move tensors to right device
+- Add tempfile prefix option
+- Add dataset iterator
+- Fix type hints and add py.typed
+
 ## 0.1.2 – 2023-01-11
 
 - Send predictions to cpu for voodoo post-processing

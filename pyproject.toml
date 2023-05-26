@@ -44,9 +44,9 @@ dev = [
 
 [project.urls]
 "Bug Tracker" = "https://github.com/actris-cloudnet/voodoonet/issues"
-changelog = "https://github.com/actris-cloudnet/voodoonet/blob/main/CHANGELOG.md"
-homepage = "https://github.com/actris-cloudnet/voodoonet"
-repository = "https://github.com/actris-cloudnet/voodoonet"
+Changelog = "https://github.com/actris-cloudnet/voodoonet/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/actris-cloudnet/voodoonet"
+Repository = "https://github.com/actris-cloudnet/voodoonet"
 
 [tool.black]
 line-length = 88

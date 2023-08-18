@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 – 2023-08-18
+
+- Fix URL names
+- Harmonize workflows with other repositories
+
 ## 0.1.3 – 2023-04-27
 
 - Add `batch_size` to training options

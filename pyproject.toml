@@ -39,7 +39,8 @@ dev = [
   "isort",
   "docformatter",
   "types-tqdm",
-  "types-requests"
+  "types-requests",
+  "release-version"
 ]
 
 [project.urls]
@@ -67,6 +68,11 @@ warn_unused_ignores = true
 good-names = ["i", "j", "k", "v", "f", "nc"]
 ignore-patterns = "test_.*\\.py"
 max-line-length = 88
+
+[tool.release-version]
+changelog = "CHANGELOG.md"
+filename = "voodoonet/version.py"
+pattern = ["MAJOR = (?P<major>\\d+)", "MINOR = (?P<minor>\\d+)", "PATCH = (?P<patch>\\d+)"]
 
 [tool.setuptools.dynamic]
 version = {attr = "voodoonet.version.__version__"}

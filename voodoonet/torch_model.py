@@ -3,10 +3,10 @@ Tensorflow and Keras."""
 from collections import OrderedDict
 
 import torch
-import wandb
 from torch import Tensor, nn
 from tqdm.auto import tqdm
 
+import wandb
 from voodoonet.utils import (
     VoodooOptions,
     VoodooTrainingOptions,

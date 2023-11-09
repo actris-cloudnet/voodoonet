@@ -4,37 +4,27 @@ on: [push, pull_request]
 
 jobs:
   build:
-
-    runs-on: ${{ matrix.os }}
-
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.10', '3.11']
+        python-version: ["3.10", "3.11"]
 
+    runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-        cache: pip
-    - name: Install dependencies
-      run: |
-        pip3 install torch --extra-index-url https://download.pytorch.org/whl/cpu
-        pip3 install .[dev]
-    - name: Lint with pylint
-      run: |
-        pylint voodoonet
-    - name: Check format with black
-      run: |
-        black --check voodoonet
-    - name: Check imports with isort
-      run: |
-        isort --check voodoonet
-    - name: Typecheck with mypy
-      run: |
-        mypy voodoonet tests
-    - name: Test with pytest-flakefinder
-      run: |
-        pytest --flake-finder --flake-runs=2
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          pip3 install torch --extra-index-url https://download.pytorch.org/whl/cpu
+          pip3 install .[dev]
+      - name: Run pre-commit checks
+        if: startsWith(matrix.os, 'ubuntu-')
+        run: |
+          pre-commit run --all-files --show-diff-on-failure
+      - name: Test with pytest-flakefinder
+        run: |
+          pytest --flake-finder --flake-runs=2

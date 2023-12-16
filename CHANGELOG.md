@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5 – 2023-12-16
+
+- Cope with empty tensor
+
 ## 0.1.4 – 2023-08-18
 
 - Fix URL names

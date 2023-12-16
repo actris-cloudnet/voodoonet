@@ -58,7 +58,9 @@ class VoodooNet(nn.Module):
             ):
                 batch_x = x_test[i : i + batch_size].to(self.options.device)
                 pred.append(self(batch_x))
-        return torch.cat(pred, 0)
+        if len(pred) > 0:
+            return torch.cat(pred, 0)
+        return torch.Tensor([])
 
     def forward(self, tensor: Tensor) -> Tensor:
         tensor = self.convolution_network(tensor)

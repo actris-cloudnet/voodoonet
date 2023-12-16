@@ -232,9 +232,12 @@ class VoodooDroplet:
         spectra_norm, non_zero_mask, time_ind = self._extract_features(filename)
         if len(time_ind) > 0:
             prediction = self._predict(spectra_norm)
-            prob = utils.reshape(prediction, ~non_zero_mask)
-            prob = gaussian_filter(prob, sigma=1)
-            prob = prob[:, :, 0]
+            if prediction.shape == (0,):
+                prob = np.zeros(non_zero_mask.shape)
+            else:
+                prob = utils.reshape(prediction, ~non_zero_mask)
+                prob = gaussian_filter(prob, sigma=1)
+                prob = prob[:, :, 0]
             self.prob_liquid[time_ind, :] = prob
 
     def compile_dataset(

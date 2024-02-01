@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.6 – 2024-02-01
+
+- Fix to work with more than 256 spectral bins
+
 ## 0.1.5 – 2023-12-16
 
 - Cope with empty tensor

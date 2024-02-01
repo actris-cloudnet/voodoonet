@@ -376,6 +376,7 @@ class VoodooDroplet:
         non_zero_mask = data["TotSpec"] > 0.0
         spectra = _replace_fill_value(data["TotSpec"], data["SLv"])
         spectra = _interpolate_to_256(spectra, header)
+        non_zero_mask = _interpolate_to_256(non_zero_mask, header) >= 0.5
         interp_var, interp_mask = self._hyperspectral_image(
             radar_time,
             spectra,
@@ -462,10 +463,9 @@ def _interpolate_to_256(rpg_data: np.ndarray, rpg_header: dict) -> np.ndarray:
     n_time, n_range, _ = rpg_data.shape
     spec_new = np.zeros((n_time, n_range, n_bins))
     chirp_limits = np.append(rpg_header["RngOffs"], n_range)
-
     for ind, (ia, ib) in enumerate(zip(chirp_limits[:-1], chirp_limits[1:])):
         spec = rpg_data[:, ia:ib, :]
-        if rpg_header["SpecN"][ind] == n_bins:
+        if rpg_header["SpecN"][ind] == n_bins and max(spec.shape) == n_bins:
             spec_new[:, ia:ib, :] = spec
         else:
             old = rpg_header["velocity_vectors"][ind]

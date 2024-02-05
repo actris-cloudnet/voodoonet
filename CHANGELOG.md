@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.7 – 2024-02-05
+
+- Skip file when reading fails
+- Make progress bar optional
+
 ## 0.1.6 – 2024-02-01
 
 - Fix to work with more than 256 spectral bins

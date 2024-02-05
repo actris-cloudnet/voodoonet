@@ -8,7 +8,7 @@ import numpy as np
 import requests
 import torch
 from requests.adapters import HTTPAdapter, Retry
-from rpgpy import read_rpg
+from rpgpy import RPGFileError, read_rpg
 from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter
 from torch import Tensor
@@ -362,7 +362,7 @@ class VoodooDroplet:
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         try:
             header, data = read_rpg(filename)
-        except IndexError:
+        except (IndexError, RPGFileError):
             logging.error(f"Error reading RPG file {filename}")
             return np.array([]), np.array([]), np.array([])
         self._init_arrays(header, data)

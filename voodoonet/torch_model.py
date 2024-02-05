@@ -53,9 +53,10 @@ class VoodooNet(nn.Module):
         self.eval()
         pred = []
         with torch.inference_mode():
-            for i in tqdm(
-                range(0, len(x_test), batch_size), ncols=100, unit=" batches"
-            ):
+            iterable = range(0, len(x_test), batch_size)
+            if self.options.progress_bar:
+                iterable = tqdm(iterable, ncols=100, unit=" batches")  # type: ignore
+            for i in iterable:
                 batch_x = x_test[i : i + batch_size].to(self.options.device)
                 pred.append(self(batch_x))
         if len(pred) > 0:

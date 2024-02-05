@@ -28,6 +28,7 @@ class VoodooOptions:
     n_dbins: int = 256
     z_limits: tuple[float, float] = (-50, 20)
     device: str = "cpu"
+    progress_bar: bool = True
 
     def dict(self) -> dict:
         return {k: str(v) for k, v in asdict(self).items()}

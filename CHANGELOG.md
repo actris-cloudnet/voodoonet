@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.8 – 2024-02-27
+
+- Ignore files with different height vector
+
 ## 0.1.7 – 2024-02-05
 
 - Skip file when reading fails

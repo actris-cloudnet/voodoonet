@@ -52,7 +52,11 @@ def infer(
     """Use existing Voodoo model to infer measurement data."""
     voodoo_droplet = VoodooDroplet(target_time, options, training_options)
     for filename in rpg_lv0_files:
+        # header, data = read_rpg(filename)
+        # print(len(data["Time"]))
         voodoo_droplet.calc_prob(filename)
+    # import sys
+    # sys.exit(0)
     return voodoo_droplet.prob_liquid
 
 
@@ -230,15 +234,12 @@ class VoodooDroplet:
 
     def calc_prob(self, filename: str) -> None:
         spectra_norm, non_zero_mask, time_ind = self._extract_features(filename)
-        if len(time_ind) > 0:
+        if len(time_ind) > 0 and non_zero_mask.shape[1] == self.prob_liquid.shape[1]:
             prediction = self._predict(spectra_norm)
-            if prediction.shape == (0,):
-                prob = np.zeros(non_zero_mask.shape)
-            else:
+            if prediction.shape != (0,):
                 prob = utils.reshape(prediction, ~non_zero_mask)
                 prob = gaussian_filter(prob, sigma=1)
-                prob = prob[:, :, 0]
-            self.prob_liquid[time_ind, :] = prob
+                self.prob_liquid[time_ind, :] = prob[:, :, 0]
 
     def compile_dataset(
         self, rpg_files: list[str], target_class_files: list[str]

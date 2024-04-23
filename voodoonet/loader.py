@@ -52,11 +52,7 @@ def infer(
     """Use existing Voodoo model to infer measurement data."""
     voodoo_droplet = VoodooDroplet(target_time, options, training_options)
     for filename in rpg_lv0_files:
-        # header, data = read_rpg(filename)
-        # print(len(data["Time"]))
         voodoo_droplet.calc_prob(filename)
-    # import sys
-    # sys.exit(0)
     return voodoo_droplet.prob_liquid
 
 

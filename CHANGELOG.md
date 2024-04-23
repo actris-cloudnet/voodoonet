@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.9 – 2024-04-23
+
+- Use files with common height vector only
+
 ## 0.1.8 – 2024-02-27
 
 - Ignore files with different height vector

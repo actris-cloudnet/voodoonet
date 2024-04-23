@@ -51,9 +51,16 @@ def infer(
 ) -> np.ndarray:
     """Use existing Voodoo model to infer measurement data."""
     voodoo_droplet = VoodooDroplet(target_time, options, training_options)
-    for filename in rpg_lv0_files:
+    valid_files = _get_files_with_common_height(rpg_lv0_files)
+    for filename in valid_files:
         voodoo_droplet.calc_prob(filename)
     return voodoo_droplet.prob_liquid
+
+
+def _get_files_with_common_height(files: list) -> list:
+    n_alts = [read_rpg(file)[0]["RAltN"] for file in files]
+    most_common = max(set(n_alts), key=n_alts.count)
+    return [file for file, n_alt in zip(files, n_alts) if n_alt == most_common]
 
 
 def generate_training_data(

@@ -227,7 +227,7 @@ class VoodooNet(nn.Module):
             assert self.wandb is not None
             self.wandb.config.update(self.options.dict(), allow_val_change=True)
         else:
-            self.wandb = None
+            self.wandb = None  # type: ignore
 
 
 class Conv2DUnit(nn.Module):

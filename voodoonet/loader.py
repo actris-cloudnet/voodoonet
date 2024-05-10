@@ -58,7 +58,12 @@ def infer(
 
 
 def _get_files_with_common_height(files: list) -> list:
-    n_alts = [read_rpg(file)[0]["RAltN"] for file in files]
+    n_alts = []
+    for file in files:
+        try:
+            n_alts.append(read_rpg(file)[0]["RAltN"])
+        except RPGFileError:
+            continue
     most_common = max(set(n_alts), key=n_alts.count)
     return [file for file, n_alt in zip(files, n_alts) if n_alt == most_common]
 

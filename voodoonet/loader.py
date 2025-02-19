@@ -223,7 +223,7 @@ def load_training_data(
         y_test.to(torch.int64), num_classes=len(training_options.groups)
     ).float()
 
-    return x_train, y_train, x_test, y_test
+    return x_train.float(), y_train, x_test.float(), y_test
 
 
 class VoodooDroplet:

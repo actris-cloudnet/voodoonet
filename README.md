@@ -42,7 +42,7 @@ pip3 install -e .[dev]
 
 If you wish to acknowledge VoodooNet in your publication, please cite:
 
-> Schimmel et al. (2022). Identifying cloud droplets beyond lidar attenuation from vertically pointing cloud radar observations using artificial neural networks. *Atmos. Meas. Tech.*, *15*(18), 5343–5366. <https://doi.org/10.5194/amt-15-5343-2022>
+> Schimmel et al. (2022). Identifying cloud droplets beyond lidar attenuation from vertically pointing cloud radar observations using artificial neural networks. _Atmos. Meas. Tech._, _15_(18), 5343–5366. <https://doi.org/10.5194/amt-15-5343-2022>
 
 ## Usage
 

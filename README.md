@@ -38,6 +38,12 @@ pip3 install voodoonet
 pip3 install -e .[dev]
 ```
 
+## Citing
+
+If you wish to acknowledge VoodooNet in your publication, please cite:
+
+> Schimmel et al. (2022). Identifying cloud droplets beyond lidar attenuation from vertically pointing cloud radar observations using artificial neural networks. *Atmos. Meas. Tech.*, *15*(18), 5343–5366. <https://doi.org/10.5194/amt-15-5343-2022>
+
 ## Usage
 
 ### Make predictions using the default model and settings
@@ -49,6 +55,17 @@ import voodoonet
 rpg_files = glob.glob('/path/to/rpg/files/*.LV0')
 probability_liquid = voodoonet.infer(rpg_files)
 ```
+
+You can for example plot the resulting liquid probability:
+
+```python
+import matplotlib.pyplot as plt
+
+plt.pcolor(probability_liquid.T)
+plt.show()
+```
+
+![](https://raw.githubusercontent.com/actris-cloudnet/voodoonet/main/voodoonet/img/voodoo_plot.png)
 
 ### Generate a training data set
 
@@ -95,14 +112,3 @@ rpg_files = glob.glob('/path/to/rpg/files/*.LV0')
 options = VoodooOptions(trained_model='new_model.pt')
 probability_liquid = voodoonet.infer(rpg_files, options=options)
 ```
-
-You can for example plot the resulting liquid probability:
-
-```python
-import matplotlib.pyplot as plt
-
-plt.pcolor(probability_liquid.T)
-plt.show()
-```
-
-![](https://raw.githubusercontent.com/actris-cloudnet/voodoonet/main/voodoonet/img/voodoo_plot.png)

@@ -55,7 +55,7 @@ probability_liquid = voodoonet.infer(rpg_files)
 Download some RPG-FMCW-94 raw files and corresponding classification files from the [Cloudnet data portal](https://cloudnet.fmi.fi/) API. For example, for [Leipzig LIM](https://cloudnet.fmi.fi/site/leipzig-lim) between 2021-01-10 and 2021-01-15:
 
 ```sh
-curl "https://cloudnet.fmi.fi/api/raw-files?dateFrom=2021-01-10&dateTo=2021-01-15&site=leipzig-lim&instrument=rpg-fmcw-94" | jq '.[]["downloadUrl"]' | xargs -n1 curl -O
+curl "https://cloudnet.fmi.fi/api/raw-files?dateFrom=2021-01-10&dateTo=2021-01-15&site=leipzig-lim&instrument=rpg-fmcw-94&filenameSuffix=.LV0" | jq '.[]["downloadUrl"]' | xargs -n1 curl -O
 curl "https://cloudnet.fmi.fi/api/files?dateFrom=2021-01-10&dateTo=2021-01-15&site=leipzig-lim&product=classification" | jq '.[]["downloadUrl"]' | xargs -n1 curl -O
 ```
 
@@ -95,3 +95,14 @@ rpg_files = glob.glob('/path/to/rpg/files/*.LV0')
 options = VoodooOptions(trained_model='new_model.pt')
 probability_liquid = voodoonet.infer(rpg_files, options=options)
 ```
+
+You can for example plot the resulting liquid probability:
+
+```python
+import matplotlib.pyplot as plt
+
+plt.pcolor(probability_liquid.T)
+plt.show()
+```
+
+![](https://raw.githubusercontent.com/actris-cloudnet/voodoonet/main/voodoonet/img/voodoo_plot.png)

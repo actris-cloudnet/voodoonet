@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.11 – 2025-02-19
+
+- Fix data type when loading training data
+
 ## 0.1.10 – 2024-05-10
 
 - Skip invalid files

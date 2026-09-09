@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.12 – 2026-09-09
+
+- Speed up feature extraction by sampling only pixels with signal
+
 ## 0.1.11 – 2025-02-19
 
 - Fix data type when loading training data

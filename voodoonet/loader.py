@@ -9,6 +9,7 @@ import requests
 import torch
 from requests.adapters import HTTPAdapter, Retry
 from rpgpy import RPGFileError, read_rpg
+from rpgpy.header import read_rpg_header
 from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter
 from torch import Tensor
@@ -58,14 +59,15 @@ def infer(
 
 
 def _get_files_with_common_height(files: list) -> list:
-    n_alts = []
+    valid_files = []
     for file in files:
         try:
-            n_alts.append(read_rpg(file)[0]["RAltN"])
-        except RPGFileError:
+            valid_files.append((file, read_rpg_header(file)[0]["RAltN"]))
+        except (RPGFileError, IndexError):
             continue
+    n_alts = [n_alt for _, n_alt in valid_files]
     most_common = max(set(n_alts), key=n_alts.count)
-    return [file for file, n_alt in zip(files, n_alts) if n_alt == most_common]
+    return [file for file, n_alt in valid_files if n_alt == most_common]
 
 
 def generate_training_data(
@@ -239,6 +241,7 @@ class VoodooDroplet:
         self.prob_liquid: np.ndarray = np.array([])
         self._feature_list: list = []
         self._label_list: list = []
+        self._model: VoodooNet | None = None
 
     def calc_prob(self, filename: str) -> None:
         spectra_norm, non_zero_mask, time_ind = self._extract_features(filename)
@@ -369,42 +372,63 @@ class VoodooDroplet:
     def _extract_features(
         self, filename: str
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        empty = (np.array([]), np.array([]), np.array([]))
         try:
             header, data = read_rpg(filename)
         except (IndexError, RPGFileError):
             logging.error(f"Error reading RPG file {filename}")
-            return np.array([]), np.array([]), np.array([])
+            return empty
         self._init_arrays(header, data)
         assert self.target_time is not None
         radar_time = utils.rpg_time2unix(data["Time"])
         time_ind = np.where(
             (self.target_time > min(radar_time)) & (self.target_time < max(radar_time))
-        )
+        )[0]
         if len(time_ind) == 0:
-            return np.array([]), np.array([]), np.array([])
-        non_zero_mask = data["TotSpec"] > 0.0
-        spectra = _replace_fill_value(data["TotSpec"], data["SLv"])
-        spectra = _interpolate_to_256(spectra, header)
-        non_zero_mask = _interpolate_to_256(non_zero_mask, header) >= 0.5
-        interp_var, interp_mask = self._hyperspectral_image(
-            radar_time,
-            spectra,
-            non_zero_mask,
-            self.target_time[time_ind],
+            return empty
+        tot_spec = data["TotSpec"]
+        n_time = tot_spec.shape[0]
+        feature_indices = self._feature_indices(
+            radar_time, self.target_time[time_ind], n_time
         )
-        non_zero_mask = (interp_mask.any(axis=3)).any(axis=2)
-        ind = np.where(non_zero_mask)
-        spectra = interp_var[ind[0], ind[1], :, :]
-        spectra = utils.lin2z(spectra)
+        # Only pixels with signal in any of the neighbouring profiles are candidates
+        has_signal = tot_spec.max(axis=2) > 0
+        candidates = has_signal[feature_indices].any(axis=1)
+        ind_time, ind_range = np.nonzero(candidates)
+        spectra, mask = _sample_spectra(
+            tot_spec,
+            data["SLv"],
+            header,
+            feature_indices[ind_time],
+            ind_range,
+            self.options.n_dbins,
+        )
+        valid = mask.any(axis=(1, 2))
+        non_zero_mask = np.zeros(candidates.shape, dtype=bool)
+        non_zero_mask[ind_time[valid], ind_range[valid]] = True
+        spectra = np.transpose(spectra[valid], (0, 2, 1))
         spectra_norm = self._normalize_spectra(spectra)
-        return spectra_norm, non_zero_mask, time_ind[0]
+        return spectra_norm, non_zero_mask, time_ind
+
+    def _feature_indices(
+        self, time_orig: np.ndarray, time_new: np.ndarray, n_time: int
+    ) -> np.ndarray:
+        """Indices of the neighbouring radar profiles for each target time."""
+        mid = self.options.n_channels // 2
+        ind_time = np.minimum(np.searchsorted(time_orig, time_new), n_time - 1)
+        indices = ind_time[:, None] + np.arange(-mid, mid)
+        return np.clip(indices, 0, n_time - 1)
 
     def _normalize_spectra(self, spectra: np.ndarray) -> np.ndarray:
-        """Normalize spectra between 0 and 1."""
+        """Convert spectra to dBZ and normalize between 0 and 1."""
         z_min, z_max = self.options.z_limits
-        data_normalized = (spectra - z_min) / (z_max - z_min)
-        data_normalized[data_normalized < 0.0] = 0.0
-        data_normalized[data_normalized > 1.0] = 1.0
+        valid = spectra > 0
+        # log10 in float32 followed by float64 math matches the trained model input
+        log_spectra = np.log10(spectra, where=valid, out=np.zeros_like(spectra))
+        spectra_z = 10 * log_spectra.astype(np.float64)
+        data_normalized = (spectra_z - z_min) / (z_max - z_min)
+        np.clip(data_normalized, 0.0, 1.0, out=data_normalized)
+        data_normalized[~valid] = 1.0
         return data_normalized
 
     def _init_arrays(self, header: dict, data: dict) -> None:
@@ -420,77 +444,70 @@ class VoodooDroplet:
         tensor = torch.Tensor(data)
         tensor = torch.unsqueeze(tensor, dim=1)
         tensor = torch.transpose(tensor, 3, 2)
-        voodoo_net = VoodooNet(tensor.shape, self.options, self.training_options)
-        voodoo_net.load_state_dict(
-            torch.load(self.options.trained_model, map_location=self.options.device)[
-                "state_dict"
-            ]
-        )
-        prediction = voodoo_net.predict(tensor, batch_size=256).to("cpu")
+        if self._model is None:
+            self._model = VoodooNet(tensor.shape, self.options, self.training_options)
+            self._model.load_state_dict(
+                torch.load(
+                    self.options.trained_model, map_location=self.options.device
+                )["state_dict"]
+            )
+        prediction = self._model.predict(tensor, batch_size=256).to("cpu")
         return prediction
 
-    def _hyperspectral_image(
-        self,
-        time_orig: np.ndarray,
-        spec_vh: np.ndarray,
-        mask: np.ndarray,
-        time_new: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        n_time_new = len(time_new)
-        n_time, n_range, n_vel = spec_vh.shape
-        mid = self.options.n_channels // 2
 
-        shape = (n_time_new, self.options.n_channels, n_range, n_vel)
-        ip_var = np.full(shape, fill_value=-999.0, dtype=np.float32)
-        ip_msk = np.full(shape, fill_value=True)
-        feature_indices = np.zeros((n_time_new, self.options.n_channels), dtype=int)
+def _sample_spectra(
+    tot_spec: np.ndarray,
+    sensitivity: np.ndarray,
+    header: dict,
+    ind_time: np.ndarray,
+    ind_range: np.ndarray,
+    n_bins: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Extract spectra of the given pixels resampled to n_bins velocity bins.
 
-        for ind in range(n_time_new):
-            ind_time = utils.arg_nearest(time_orig, time_new[ind])
-            feature_indices[ind, :] = np.array(range(ind_time - mid, ind_time + mid))
-        feature_indices[feature_indices < 0] = 0
-        feature_indices[feature_indices >= n_time] = n_time - 1
+    Fill values (<= 0) are replaced with the sensitivity limit.
+    Returns the spectra and the signal mask, both with shape
+    (n_samples, n_channels, n_bins).
+    """
+    n_samples, n_channels = ind_time.shape
+    spectra = np.zeros((n_samples, n_channels, n_bins), dtype=np.float32)
+    mask = np.zeros((n_samples, n_channels, n_bins), dtype=bool)
+    chirp_limits = np.append(header["RngOffs"], tot_spec.shape[1])
+    for chirp, (ia, ib) in enumerate(zip(chirp_limits[:-1], chirp_limits[1:])):
+        in_chirp = (ind_range >= ia) & (ind_range < ib)
+        if not in_chirp.any():
+            continue
+        ind_bin, in_bounds = _nearest_bin_indices(
+            header["velocity_vectors"][chirp], n_bins
+        )
+        t_ind = ind_time[in_chirp]
+        r_ind = ind_range[in_chirp]
+        spec = tot_spec[t_ind[:, :, None], r_ind[:, None, None], ind_bin[None, None, :]]
+        signal = spec > 0
+        spec = np.where(signal, spec, sensitivity[t_ind, r_ind[:, None]][:, :, None])
+        spec[:, :, ~in_bounds] = -999.0
+        signal[:, :, ~in_bounds] = False
+        spectra[in_chirp] = spec
+        mask[in_chirp] = signal
+    return spectra, mask
 
-        for idx_time, idx_features in enumerate(feature_indices):
-            ip_var[idx_time, :, :, :] = spec_vh[idx_features, :, :]
-            ip_msk[idx_time, :, :, :] = mask[idx_features, :, :]
 
-        ip_var = np.transpose(ip_var, axes=[0, 2, 3, 1])
-        ip_msk = np.transpose(ip_msk, axes=[0, 2, 3, 1])
-
-        return ip_var, ip_msk
-
-
-def _replace_fill_value(data: np.ndarray, new_fill: np.ndarray) -> np.ndarray:
-    fill_3d = np.broadcast_to(new_fill[..., None], new_fill.shape + (data.shape[2],))
-    data[data <= 0] = fill_3d[data <= 0]
-    return data
-
-
-def _interpolate_to_256(rpg_data: np.ndarray, rpg_header: dict) -> np.ndarray:
-    n_bins = 256
-    n_time, n_range, _ = rpg_data.shape
-    spec_new = np.zeros((n_time, n_range, n_bins))
-    chirp_limits = np.append(rpg_header["RngOffs"], n_range)
-    for ind, (ia, ib) in enumerate(zip(chirp_limits[:-1], chirp_limits[1:])):
-        spec = rpg_data[:, ia:ib, :]
-        if rpg_header["SpecN"][ind] == n_bins and max(spec.shape) == n_bins:
-            spec_new[:, ia:ib, :] = spec
-        else:
-            old = rpg_header["velocity_vectors"][ind]
-            iaa, ibb = int(np.argmin(old)), int(np.argmax(old)) + 1
-            old = old[iaa:ibb]
-            f = interp1d(
-                old,
-                spec[:, :, iaa:ibb],
-                axis=2,
-                bounds_error=False,
-                fill_value=-999.0,
-                kind="nearest",
-            )
-            spec_new[:, ia:ib, :] = f(np.linspace(old[0], old[-1], n_bins))
-
-    return spec_new
+def _nearest_bin_indices(
+    velocity: np.ndarray, n_bins: int
+) -> tuple[np.ndarray, np.ndarray]:
+    """Map n_bins evenly spaced velocity bins to the nearest original bins."""
+    ia, ib = int(np.argmin(velocity)), int(np.argmax(velocity)) + 1
+    velocity = velocity[ia:ib]
+    f = interp1d(
+        velocity,
+        np.arange(ia, ib),
+        kind="nearest",
+        bounds_error=False,
+        fill_value=-1,
+    )
+    ind = f(np.linspace(velocity[0], velocity[-1], n_bins))
+    in_bounds = ind >= 0
+    return np.where(in_bounds, ind, 0).astype(int), in_bounds
 
 
 def _save_training_data(

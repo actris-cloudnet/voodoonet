@@ -92,13 +92,7 @@ def arg_nearest(array: np.ndarray, value: float | int) -> np.int64:
 def reshape(data: Tensor, mask: np.ndarray) -> np.ndarray:
     new_shape = mask.shape + (data.shape[1],)
     input_reshaped = np.zeros(new_shape)
-    cnt = 0
-    for i in range(new_shape[0]):
-        for j in range(new_shape[1]):
-            if mask[i, j]:
-                continue
-            input_reshaped[i, j, :] = data[cnt, :]
-            cnt += 1
+    input_reshaped[~mask] = np.asarray(data)
     return input_reshaped
 
 

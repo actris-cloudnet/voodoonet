@@ -53,7 +53,9 @@ def infer(
     """Use existing Voodoo model to infer measurement data."""
     voodoo_droplet = VoodooDroplet(target_time, options, training_options)
     valid_files = _get_files_with_common_height(rpg_lv0_files)
-    for filename in valid_files:
+    n_files = len(valid_files)
+    for i, filename in enumerate(valid_files, start=1):
+        logging.info(f"Processing RPG file {i}/{n_files}: {os.path.basename(filename)}")
         voodoo_droplet.calc_prob(filename)
     return voodoo_droplet.prob_liquid
 

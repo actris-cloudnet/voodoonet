@@ -1,6 +1,7 @@
 """This module contains functions for generating deep learning models with
 Tensorflow and Keras."""
 
+import logging
 from collections import OrderedDict
 
 import torch
@@ -54,10 +55,16 @@ class VoodooNet(nn.Module):
         self.eval()
         pred = []
         with torch.inference_mode():
-            iterable = range(0, len(x_test), batch_size)
-            if self.options.progress_bar:
-                iterable = tqdm(iterable, ncols=100, unit=" batches")  # type: ignore
-            for i in iterable:
+            starts = range(0, len(x_test), batch_size)
+            n_batches = len(starts)
+            iterable = (
+                tqdm(starts, ncols=100, unit=" batches")
+                if self.options.progress_bar
+                else starts
+            )
+            for n, i in enumerate(iterable, start=1):
+                if not self.options.progress_bar:
+                    logging.debug(f"Predicting batch {n}/{n_batches}")
                 batch_x = x_test[i : i + batch_size].to(self.options.device)
                 pred.append(self(batch_x))
         if len(pred) > 0:

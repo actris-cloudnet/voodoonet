@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 – 2026-09-14
+
+- Log file and batch progress when progress bar is disabled
+- Use cloudnet-api-client for fetching training data from the data portal
+- Accept path-like objects as file inputs
+- Make wandb optional and declare netCDF4 and torch dependencies
+
 ## 0.1.12 – 2026-09-09
 
 - Speed up feature extraction by sampling only pixels with signal

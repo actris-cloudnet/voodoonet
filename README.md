@@ -87,8 +87,8 @@ classification_meta = client.files(
     product_id="classification",
     date="2021-01-10",
 )
-rpg_files = [str(p) for p in client.download(rpg_meta, "data/")]
-classification_files = [str(p) for p in client.download(classification_meta, "data/")]
+rpg_files = client.download(rpg_meta, "data/")
+classification_files = client.download(classification_meta, "data/")
 voodoonet.generate_training_data(rpg_files, classification_files, 'training-data-set.pt')
 ```
 

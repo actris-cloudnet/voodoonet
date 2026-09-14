@@ -1,6 +1,7 @@
 import os
 import re
 from collections import OrderedDict
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 
 import numpy as np
@@ -11,6 +12,7 @@ from torchmetrics.classification import BinaryConfusionMatrix
 IntTuples = tuple[tuple[int, int], ...]
 IntTuplesVariable = tuple[tuple[int, ...], ...]
 Ints = tuple[int, ...]
+PathLike = str | os.PathLike[str]
 
 
 @dataclass
@@ -96,10 +98,9 @@ def reshape(data: Tensor, mask: np.ndarray) -> np.ndarray:
     return input_reshaped
 
 
-def filter_list(rpg_lv0_files: list[str], date: list[str]) -> list[str]:
+def filter_list(rpg_lv0_files: Sequence[PathLike], date: list[str]) -> list[PathLike]:
     regex = re.compile("".join(date))
-    filtered_strings = filter(regex.search, rpg_lv0_files)
-    return list(filtered_strings)
+    return [f for f in rpg_lv0_files if regex.search(os.fspath(f))]
 
 
 def numpy_arrays2tensor(data: list[np.ndarray]) -> Tensor:

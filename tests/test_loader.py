@@ -163,7 +163,7 @@ def test_generate_training_data_for_cloudnet(
     # only 2021-01-10 has both classification and LV0 files
     assert len(days) == 1
     rpg, cls = days[0]
-    assert cls.endswith("2021-01-10_classification.nc")
+    assert Path(cls).name == "2021-01-10_classification.nc"
     assert [Path(p).name for p in rpg] == [
         "210110_000000_P05_ZEN.LV0",
         "210110_010000_P05_ZEN.LV0",
@@ -172,3 +172,21 @@ def test_generate_training_data_for_cloudnet(
         [Path(cls).name, *[Path(p).name for p in rpg]]
     )
     assert output.exists()
+
+
+def test_path_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
+    files = [
+        Path("190912_060003_P05_ZEN.LV0"),
+        Path("190912_070003_P05_ZEN.LV0"),
+        Path("190912_080003_P05_ZEN.LV0"),
+    ]
+    monkeypatch.setattr(
+        loader,
+        "read_rpg_header",
+        lambda f: [{"RAltN": 100 if f.name.startswith("190912_07") else 292}],
+    )
+    assert loader._get_files_with_common_height(files) == [files[0], files[2]]
+    date = ["19", "09", "12"]
+    assert utils.filter_list(files, date) == files
+    assert utils.filter_list([str(f) for f in files], date) == [str(f) for f in files]
+    assert utils.filter_list(files, ["20", "01", "01"]) == []

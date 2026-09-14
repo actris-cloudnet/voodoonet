@@ -1,6 +1,8 @@
 import logging
 import os.path
 import random
+from collections.abc import Sequence
+from pathlib import Path
 
 import netCDF4
 import numpy as np
@@ -13,7 +15,7 @@ from scipy.ndimage import gaussian_filter
 from torch import Tensor
 
 from voodoonet import utils
-from voodoonet.utils import VoodooOptions, VoodooTrainingOptions
+from voodoonet.utils import PathLike, VoodooOptions, VoodooTrainingOptions
 
 from .torch_model import VoodooNet
 
@@ -43,7 +45,7 @@ def train(
 
 
 def infer(
-    rpg_lv0_files: list,
+    rpg_lv0_files: Sequence[PathLike],
     target_time: np.ndarray | None = None,
     options: VoodooOptions = VoodooOptions(),
     training_options: VoodooTrainingOptions = VoodooTrainingOptions(),
@@ -58,11 +60,11 @@ def infer(
     return voodoo_droplet.prob_liquid
 
 
-def _get_files_with_common_height(files: list) -> list:
+def _get_files_with_common_height(files: Sequence[PathLike]) -> list[PathLike]:
     valid_files = []
     for file in files:
         try:
-            valid_files.append((file, read_rpg_header(file)[0]["RAltN"]))
+            valid_files.append((file, read_rpg_header(Path(file))[0]["RAltN"]))
         except (RPGFileError, IndexError):
             continue
     n_alts = [n_alt for _, n_alt in valid_files]
@@ -71,9 +73,9 @@ def _get_files_with_common_height(files: list) -> list:
 
 
 def generate_training_data(
-    rpg_lv0_files: list,
-    classification_files: list,
-    output_filename: str,
+    rpg_lv0_files: Sequence[PathLike],
+    classification_files: Sequence[PathLike],
+    output_filename: PathLike,
     options: VoodooOptions = VoodooOptions(),
     training_options: VoodooTrainingOptions = VoodooTrainingOptions(),
 ) -> None:
@@ -87,11 +89,11 @@ def generate_training_data(
 
 def generate_training_data_for_cloudnet(
     site: str,
-    output_filename: str,
+    output_filename: PathLike,
     options: VoodooOptions = VoodooOptions(),
     training_options: VoodooTrainingOptions = VoodooTrainingOptions(),
     n_days: int | None = None,
-    download_dir: str = "cloudnet-data",
+    download_dir: PathLike = "cloudnet-data",
 ) -> None:
     """Generate training dataset using files from the Cloudnet data portal.
 
@@ -131,13 +133,13 @@ def generate_training_data_for_cloudnet(
             output_directory=download_dir,
             progress=options.progress_bar,
         )
-        voodoo_droplet.compile_day([str(p) for p in rpg_paths], str(paths[0]))
+        voodoo_droplet.compile_day(list(rpg_paths), paths[0])
     features, labels = voodoo_droplet.convert_features()
     _save_training_data(features, labels, output_filename)
 
 
 def load_training_data(
-    filename: str,
+    filename: PathLike,
     training_options: VoodooTrainingOptions = VoodooTrainingOptions(),
 ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
     data = torch.load(filename)
@@ -224,7 +226,7 @@ class VoodooDroplet:
         self._label_list: list = []
         self._model: VoodooNet | None = None
 
-    def calc_prob(self, filename: str) -> None:
+    def calc_prob(self, filename: PathLike) -> None:
         spectra_norm, non_zero_mask, time_ind = self._extract_features(filename)
         if len(time_ind) > 0 and non_zero_mask.shape[1] == self.prob_liquid.shape[1]:
             prediction = self._predict(spectra_norm)
@@ -234,7 +236,7 @@ class VoodooDroplet:
                 self.prob_liquid[time_ind, :] = prob[:, :, 0]
 
     def compile_dataset(
-        self, rpg_files: list[str], target_class_files: list[str]
+        self, rpg_files: Sequence[PathLike], target_class_files: Sequence[PathLike]
     ) -> tuple[Tensor, Tensor]:
         for classification_file in target_class_files:
             with netCDF4.Dataset(classification_file) as nc:
@@ -243,7 +245,9 @@ class VoodooDroplet:
             self.compile_day(rpg_files_of_day, classification_file)
         return self.convert_features()
 
-    def compile_day(self, rpg_files: list[str], classification_file: str) -> None:
+    def compile_day(
+        self, rpg_files: Sequence[PathLike], classification_file: PathLike
+    ) -> None:
         logging.info(f"Categorize file: {os.path.basename(classification_file)}")
         with netCDF4.Dataset(classification_file) as nc:
             target_classification = nc.variables["target_classification"][:]
@@ -300,7 +304,7 @@ class VoodooDroplet:
         return Tensor([]), Tensor([])
 
     def _extract_features(
-        self, filename: str
+        self, filename: PathLike
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         empty = (np.array([]), np.array([]), np.array([]))
         try:
@@ -443,6 +447,6 @@ def _nearest_bin_indices(
 def _save_training_data(
     features: Tensor,
     labels: Tensor,
-    file_name: str,
+    file_name: PathLike,
 ) -> None:
     torch.save({"features": features, "labels": labels}, file_name)

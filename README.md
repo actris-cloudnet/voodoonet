@@ -32,6 +32,12 @@ pip3 install torch --extra-index-url https://download.pytorch.org/whl/cpu
 pip3 install voodoonet
 ```
 
+To log training runs with [Weights & Biases](https://wandb.ai/), install the `train` extra:
+
+```sh
+pip3 install voodoonet[train]
+```
+
 ### Locally for development
 
 ```sh

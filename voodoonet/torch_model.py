@@ -1,11 +1,10 @@
-"""This module contains functions for generating deep learning models with
-Tensorflow and Keras."""
+"""PyTorch model definition, training and inference for VoodooNet."""
 
 import logging
 from collections import OrderedDict
+from typing import Any
 
 import torch
-import wandb
 from torch import Tensor, nn
 from tqdm.auto import tqdm
 
@@ -226,16 +225,20 @@ class VoodooNet(nn.Module):
         return tensor.shape[1]
 
     def _init_wandb(self, training_options: VoodooTrainingOptions) -> None:
-        if training_options.wandb is not None:
-            self.wandb = wandb.init(
-                project=training_options.wandb.project,
-                name=training_options.wandb.name,
-                entity=training_options.wandb.entity,
-            )
-            assert self.wandb is not None
-            self.wandb.config.update(self.options.dict(), allow_val_change=True)
-        else:
-            self.wandb = None  # type: ignore
+        self.wandb: Any = None
+        if training_options.wandb is None:
+            return
+        try:
+            import wandb  # noqa: PLC0415
+        except ImportError as exc:
+            msg = "wandb is required for logging, install with 'pip install voodoonet[train]'"
+            raise ImportError(msg) from exc
+        self.wandb = wandb.init(
+            project=training_options.wandb.project,
+            name=training_options.wandb.name,
+            entity=training_options.wandb.entity,
+        )
+        self.wandb.config.update(self.options.dict(), allow_val_change=True)
 
 
 class Conv2DUnit(nn.Module):

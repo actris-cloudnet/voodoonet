@@ -12,3 +12,6 @@ dist/
 scripts/
 .eggs/
 *~
+/data/
+/cloudnet-data/
+/*.pt

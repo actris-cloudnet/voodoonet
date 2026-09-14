@@ -1,3 +1,6 @@
+import datetime
+from pathlib import Path
+
 import numpy as np
 import pytest
 import torch
@@ -107,3 +110,65 @@ def test_reshape() -> None:
     assert np.array_equal(out[1, 0], [3.0, 4.0])
     assert np.array_equal(out[1, 1], [5.0, 6.0])
     assert np.all(out[mask] == 0)
+
+
+class _Meta:
+    def __init__(self, filename: str, date: str):
+        self.filename = filename
+        self.measurement_date = datetime.date.fromisoformat(date)
+
+
+class _FakeClient:
+    def __init__(self) -> None:
+        self.downloaded: list[str] = []
+
+    def files(self, **kwargs: object) -> list:
+        return [
+            _Meta(f"{d}_classification.nc", d) for d in ("2021-01-10", "2021-01-11")
+        ]
+
+    def raw_files(self, **kwargs: object) -> list:
+        return [
+            _Meta("210110_000000_P05_ZEN.LV0", "2021-01-10"),
+            _Meta("210110_010000_P05_ZEN.LV0", "2021-01-10"),
+            _Meta("210112_000000_P05_ZEN.LV0", "2021-01-12"),
+        ]
+
+    def download(self, metadata: list, **kwargs: object) -> list[Path]:
+        paths = [Path(kwargs["output_directory"], m.filename) for m in metadata]  # type: ignore[arg-type]
+        self.downloaded += [p.name for p in paths]
+        return paths
+
+
+def test_generate_training_data_for_cloudnet(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    client = _FakeClient()
+    days: list[tuple[list[str], str]] = []
+    monkeypatch.setattr(loader, "APIClient", lambda: client)
+    monkeypatch.setattr(
+        loader.VoodooDroplet,
+        "compile_day",
+        lambda self, rpg, cls: days.append((rpg, cls)),
+    )
+    monkeypatch.setattr(
+        loader.VoodooDroplet,
+        "convert_features",
+        lambda self: (torch.Tensor([1]), torch.Tensor([0])),
+    )
+    output = tmp_path / "train.pt"
+    loader.generate_training_data_for_cloudnet(
+        "leipzig-lim", str(output), download_dir=str(tmp_path)
+    )
+    # only 2021-01-10 has both classification and LV0 files
+    assert len(days) == 1
+    rpg, cls = days[0]
+    assert cls.endswith("2021-01-10_classification.nc")
+    assert [Path(p).name for p in rpg] == [
+        "210110_000000_P05_ZEN.LV0",
+        "210110_010000_P05_ZEN.LV0",
+    ]
+    assert sorted(client.downloaded) == sorted(
+        [Path(cls).name, *[Path(p).name for p in rpg]]
+    )
+    assert output.exists()

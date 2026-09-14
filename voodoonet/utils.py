@@ -96,7 +96,7 @@ def reshape(data: Tensor, mask: np.ndarray) -> np.ndarray:
     return input_reshaped
 
 
-def filter_list(rpg_lv0_files: list[str], date: list[str]) -> list[str | None]:
+def filter_list(rpg_lv0_files: list[str], date: list[str]) -> list[str]:
     regex = re.compile("".join(date))
     filtered_strings = filter(regex.search, rpg_lv0_files)
     return list(filtered_strings)

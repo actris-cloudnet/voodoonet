@@ -69,23 +69,30 @@ plt.show()
 
 ### Generate a training data set
 
-Download some RPG-FMCW-94 raw files and corresponding classification files from the [Cloudnet data portal](https://cloudnet.fmi.fi/) API. For example, for [Leipzig LIM](https://cloudnet.fmi.fi/site/leipzig-lim) between 2021-01-10 and 2021-01-15:
-
-```sh
-curl "https://cloudnet.fmi.fi/api/raw-files?dateFrom=2021-01-10&dateTo=2021-01-15&site=leipzig-lim&instrument=rpg-fmcw-94&filenameSuffix=.LV0" | jq '.[]["downloadUrl"]' | xargs -n1 curl -O
-curl "https://cloudnet.fmi.fi/api/files?dateFrom=2021-01-10&dateTo=2021-01-15&site=leipzig-lim&product=classification" | jq '.[]["downloadUrl"]' | xargs -n1 curl -O
-```
+Download some RPG-FMCW-94 raw files and corresponding classification files from the [Cloudnet data portal](https://cloudnet.fmi.fi/) using [cloudnet-api-client](https://pypi.org/project/cloudnet-api-client/), which is installed with voodoonet. For example, for [Leipzig LIM](https://cloudnet.fmi.fi/site/leipzig-lim) on 2021-01-10:
 
 ```python
-import glob
 import voodoonet
+from cloudnet_api_client import APIClient
 
-rpg_files = glob.glob('*.LV0')
-classification_files = glob.glob('*classification.nc')
+client = APIClient()
+rpg_meta = client.raw_files(
+    site_id="leipzig-lim",
+    instrument_id="rpg-fmcw-94",
+    filename_suffix=".LV0",
+    date="2021-01-10",
+)
+classification_meta = client.files(
+    site_id="leipzig-lim",
+    product_id="classification",
+    date="2021-01-10",
+)
+rpg_files = [str(p) for p in client.download(rpg_meta, "data/")]
+classification_files = [str(p) for p in client.download(classification_meta, "data/")]
 voodoonet.generate_training_data(rpg_files, classification_files, 'training-data-set.pt')
 ```
 
-Alternatively, just use N random days:
+Alternatively, just use N random days from a site. Files are downloaded into `download_dir` (default `cloudnet-data`) and reused on subsequent runs:
 
 ```python
 import voodoonet

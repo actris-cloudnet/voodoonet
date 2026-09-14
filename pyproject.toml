@@ -14,6 +14,7 @@ classifiers = [
   "Topic :: Scientific/Engineering",
 ]
 dependencies = [
+  "cloudnet-api-client",
   "numpy",
   "rpgpy>=0.12.1",
   "scipy",
@@ -36,7 +37,6 @@ dev = [
   "pytest-flakefinder",
   "release-version",
   "ruff",
-  "types-requests",
   "types-tqdm",
 ]
 

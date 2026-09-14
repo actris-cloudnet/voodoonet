@@ -1,13 +1,11 @@
 import logging
 import os.path
 import random
-from tempfile import NamedTemporaryFile
 
 import netCDF4
 import numpy as np
-import requests
 import torch
-from requests.adapters import HTTPAdapter, Retry
+from cloudnet_api_client import APIClient
 from rpgpy import RPGFileError, read_rpg
 from rpgpy.header import read_rpg_header
 from scipy.interpolate import interp1d
@@ -93,67 +91,48 @@ def generate_training_data_for_cloudnet(
     options: VoodooOptions = VoodooOptions(),
     training_options: VoodooTrainingOptions = VoodooTrainingOptions(),
     n_days: int | None = None,
-    tempfile_prefix: str | None = None,
+    download_dir: str = "cloudnet-data",
 ) -> None:
-    """Generate training dataset directly using Cloudnet API.
+    """Generate training dataset using files from the Cloudnet data portal.
 
-    Experimental.
+    Files are downloaded into `download_dir` one day at a time and kept
+    there, so re-running skips files that are already present.
     """
-    url = "https://cloudnet.fmi.fi/api"
-    classification_metadata = requests.get(
-        f"{url}/files",
-        {"site": site, "product": "classification"},
-        timeout=60,
-    ).json()
-    try:
-        classification_dates = [
-            row["measurementDate"] for row in classification_metadata
-        ]
-    except TypeError:
-        logging.error(f"Invalid site '{site}'.")
-        return
-    if not classification_dates:
+    client = APIClient()
+    classification_files = client.files(site_id=site, product_id="classification")
+    if not classification_files:
         logging.error(f"No classification files found for site '{site}'.")
         return
-    rpg_metadata = requests.get(
-        f"{url}/raw-files",
-        {
-            "site": site,
-            "instrument": "rpg-fmcw-94",
-            "dateFrom": min(classification_dates),
-            "dateTo": max(classification_dates),
-        },
-        timeout=60,
-    ).json()
-    rpg_metadata = [
-        row
-        for row in rpg_metadata
-        if row["filename"].endswith(".LV0")
-        and row["measurementDate"] in classification_dates
-    ]
-    rpg_dates = list(set(row["measurementDate"] for row in rpg_metadata))
-    classification_metadata = [
-        row for row in classification_metadata if row["measurementDate"] in rpg_dates
-    ]
-    if n_days is not None and len(classification_metadata) > n_days:
-        classification_metadata = random.sample(classification_metadata, n_days)
-        classification_dates = [
-            row["measurementDate"] for row in classification_metadata
-        ]
-        rpg_metadata = [
-            row
-            for row in rpg_metadata
-            if row["measurementDate"] in classification_dates
-        ]
-    if not classification_metadata:
+    classification_dates = {f.measurement_date for f in classification_files}
+    rpg_files = client.raw_files(
+        site_id=site,
+        instrument_id="rpg-fmcw-94",
+        filename_suffix=".LV0",
+        date_from=min(classification_dates),
+        date_to=max(classification_dates),
+    )
+    dates = sorted(classification_dates & {f.measurement_date for f in rpg_files})
+    if not dates:
         logging.error(
             f"No matching classification / RPG Level 0 files found for site '{site}'."
         )
         return
+    if n_days is not None and len(dates) > n_days:
+        dates = sorted(random.sample(dates, n_days))
     voodoo_droplet = VoodooDroplet(None, options, training_options)
-    features, labels = voodoo_droplet.compile_dataset_using_api(
-        rpg_metadata, classification_metadata, tempfile_prefix=tempfile_prefix
-    )
+    for date in dates:
+        paths = client.download(
+            [f for f in classification_files if f.measurement_date == date],
+            output_directory=download_dir,
+            progress=options.progress_bar,
+        )
+        rpg_paths = client.download(
+            [f for f in rpg_files if f.measurement_date == date],
+            output_directory=download_dir,
+            progress=options.progress_bar,
+        )
+        voodoo_droplet.compile_day([str(p) for p in rpg_paths], str(paths[0]))
+    features, labels = voodoo_droplet.convert_features()
     _save_training_data(features, labels, output_filename)
 
 
@@ -258,86 +237,35 @@ class VoodooDroplet:
         self, rpg_files: list[str], target_class_files: list[str]
     ) -> tuple[Tensor, Tensor]:
         for classification_file in target_class_files:
-            logging.info(f"Categorize file: {os.path.basename(classification_file)}")
             with netCDF4.Dataset(classification_file) as nc:
-                target_classification = nc.variables["target_classification"][:]
-                detection_status = nc.variables["detection_status"][:]
                 year, month, day = nc.year, nc.month, nc.day
-                self.target_time = utils.decimal_hour2unix(
-                    [year, month, day], nc.variables["time"][:]
-                )
             rpg_files_of_day = utils.filter_list(rpg_files, [year[2:], month, day])
+            self.compile_day(rpg_files_of_day, classification_file)
+        return self.convert_features()
 
-            if (n_files := len(rpg_files_of_day)) > 0:
-                logging.info(f"Processing {n_files} RPG files...")
-
-            for filename in rpg_files_of_day:
-                logging.debug(filename)
-                assert isinstance(filename, str)
-                features, non_zero_mask, time_ind = self._extract_features(filename)
-                try:
-                    self._append_features(
-                        time_ind,
-                        target_classification,
-                        detection_status,
-                        non_zero_mask,
-                        features,
-                    )
-                except ValueError:
-                    continue
-        return self._convert_features()
-
-    def compile_dataset_using_api(
-        self,
-        rpg_metadata: list[dict],
-        classification_metadata: list[dict],
-        tempfile_prefix: str | None = None,
-    ) -> tuple[Tensor, Tensor]:
-        session = requests.Session()
-        retries = Retry(total=10, backoff_factor=0.2)
-        session.mount("https://", HTTPAdapter(max_retries=retries))
-
-        for classification_meta in classification_metadata:
-            logging.info(f"Categorize file: {classification_meta['filename']}")
-            res = session.get(classification_meta["downloadUrl"])
-            with NamedTemporaryFile(prefix=tempfile_prefix) as temp_file:
-                with open(temp_file.name, "wb") as f:
-                    f.write(res.content)
-                with netCDF4.Dataset(temp_file.name) as nc:
-                    target_classification = nc.variables["target_classification"][:]
-                    detection_status = nc.variables["detection_status"][:]
-                    self.target_time = utils.decimal_hour2unix(
-                        [nc.year, nc.month, nc.day], nc.variables["time"][:]
-                    )
-            rpg_files_of_day = [
-                row
-                for row in rpg_metadata
-                if row["measurementDate"] == classification_meta["measurementDate"]
-            ]
-            if (n_files := len(rpg_files_of_day)) > 0:
-                logging.info(f"Processing {n_files} RPG files...")
-
-            for rpg_meta in rpg_files_of_day:
-                res = session.get(rpg_meta["downloadUrl"])
-                with NamedTemporaryFile(prefix=tempfile_prefix) as temp_file:
-                    with open(temp_file.name, "wb") as f:
-                        f.write(res.content)
-                        (
-                            features,
-                            non_zero_mask,
-                            time_ind,
-                        ) = self._extract_features(temp_file.name)
-                    try:
-                        self._append_features(
-                            time_ind,
-                            target_classification,
-                            detection_status,
-                            non_zero_mask,
-                            features,
-                        )
-                    except ValueError:
-                        continue
-        return self._convert_features()
+    def compile_day(self, rpg_files: list[str], classification_file: str) -> None:
+        logging.info(f"Categorize file: {os.path.basename(classification_file)}")
+        with netCDF4.Dataset(classification_file) as nc:
+            target_classification = nc.variables["target_classification"][:]
+            detection_status = nc.variables["detection_status"][:]
+            self.target_time = utils.decimal_hour2unix(
+                [nc.year, nc.month, nc.day], nc.variables["time"][:]
+            )
+        if (n_files := len(rpg_files)) > 0:
+            logging.info(f"Processing {n_files} RPG files...")
+        for filename in rpg_files:
+            logging.debug(filename)
+            features, non_zero_mask, time_ind = self._extract_features(filename)
+            try:
+                self._append_features(
+                    time_ind,
+                    target_classification,
+                    detection_status,
+                    non_zero_mask,
+                    features,
+                )
+            except ValueError:
+                continue
 
     def _append_features(
         self,
@@ -363,7 +291,7 @@ class VoodooDroplet:
         self._feature_list.append(features)
         self._label_list.append(labels)
 
-    def _convert_features(self) -> tuple[Tensor, Tensor]:
+    def convert_features(self) -> tuple[Tensor, Tensor]:
         if len(self._feature_list) > 0 and len(self._label_list) > 0:
             features_tensor = utils.numpy_arrays2tensor(self._feature_list)
             label_tensor = utils.numpy_arrays2tensor(self._label_list)

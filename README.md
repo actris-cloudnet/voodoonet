@@ -18,9 +18,9 @@ VOODOO is a machine learning approach based convolutional neural networks (CNN) 
 
 ### Prerequisites
 
-VoodooNet requires Python 3.10.
+VoodooNet requires Python 3.10 or newer.
 
-Before installing VoodooNet, install PyTorch [according to your infrastructure](https://pytorch.org/get-started/locally/). For example on a Linux machine without GPU you might run:
+Before installing VoodooNet, install PyTorch [according to your infrastructure](https://pytorch.org/get-started/locally/). Otherwise pip installs the default PyTorch build, which on Linux includes CUDA libraries and is several gigabytes. For example on a Linux machine without GPU you might run:
 
 ```sh
 pip3 install torch --extra-index-url https://download.pytorch.org/whl/cpu
@@ -122,6 +122,6 @@ import voodoonet
 from voodoonet.utils import VoodooOptions
 
 rpg_files = glob.glob('/path/to/rpg/files/*.LV0')
-options = VoodooOptions(trained_model='new_model.pt')
+options = VoodooOptions(trained_model='trained-model.pt')
 probability_liquid = voodoonet.infer(rpg_files, options=options)
 ```

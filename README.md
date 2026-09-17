@@ -1,6 +1,6 @@
 [![VoodooNet CI](https://github.com/actris-cloudnet/voodoonet/actions/workflows/test.yml/badge.svg)](https://github.com/actris-cloudnet/voodoonet/actions/workflows/test.yml)
 [![PyPI version](https://badge.fury.io/py/voodoonet.svg)](https://badge.fury.io/py/voodoonet)
-[![DOI](https://zenodo.org/badge/575846028.svg)](https://zenodo.org/badge/latestdoi/575846028)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.8263093-blue)](https://doi.org/10.5281/zenodo.8263093)
 
 # VoodooNet
 

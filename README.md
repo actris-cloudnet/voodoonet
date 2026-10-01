@@ -18,7 +18,7 @@ VOODOO is a machine learning approach based convolutional neural networks (CNN) 
 
 ### Prerequisites
 
-VoodooNet requires Python 3.10 or newer.
+VoodooNet requires Python 3.11 or newer.
 
 Before installing VoodooNet, install PyTorch [according to your infrastructure](https://pytorch.org/get-started/locally/). Otherwise pip installs the default PyTorch build, which on Linux includes CUDA libraries and is several gigabytes. For example on a Linux machine without GPU you might run:
 
